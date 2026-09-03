@@ -1,0 +1,72 @@
+{
+  "title": "Choose BuildChamp's visual world",
+  "question": "Which world makes a six-pick run feel quick, social, and worth sharing?",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Arcade Versus Ticket",
+      "kicker": "THE ROLL",
+      "lineage": "arcade tournament tickets, thermal score slips, and cabinet challenge cards",
+      "thesis": "Every champion reveal prints a claim ticket; locking a part tears it into a six-slot challenger strip.",
+      "palette": ["#191A22", "#F5EBD5", "#FF5C35", "#66D9C8"],
+      "materials": ["perforated ticket stock", "rubber-stamp ink", "powder-coated cabinet metal"],
+      "viewport": "A large current-champion reveal sits above a tactile six-ticket build rail, with one unmistakable lock action and no lobby friction.",
+      "risk": "Arcade references can become noisy unless the champion and remaining slots always dominate.",
+      "sketch": ".impeccable/sketches/assigned.png"
+    },
+    {
+      "id": "challenger-split-flap",
+      "label": "Queue Board",
+      "lineage": "rail concourse split-flap boards at rush hour",
+      "thesis": "Six fixed rows become a live departure board where each champion cascades into view and a claimed part becomes permanent.",
+      "case": "Excellent state clarity, but the travel metaphor identifies less strongly with the Discord party-game audience.",
+      "palette": ["#0C0C0D", "#F2F0E9", "#F0A928", "#A83632"],
+      "materials": ["matte split flaps", "brushed steel", "painted station lettering"],
+      "viewport": "The active reveal occupies the top row while six ruled part rows show open, available, and locked states at a glance.",
+      "risk": "The rigid timetable can make a playful run feel procedural if animation and copy lack warmth.",
+      "sketch": ".impeccable/sketches/challenger-split-flap.png",
+      "hero": "https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/signals-instruments-split-flap-concourse.webp"
+    },
+    {
+      "id": "challenger-miura",
+      "label": "Deployable Champion",
+      "lineage": "Miura-fold aerospace sheets unfolding from a compact packet",
+      "thesis": "Each irreversible choice locks one linked crease until the completed champion deploys as a single shareable sheet.",
+      "case": "The whole-from-six mechanism is exceptionally truthful, but its unfamiliar controls need more teaching.",
+      "palette": ["#F4F2EA", "#1D2024", "#C8A44D", "#B7DCE8"],
+      "materials": ["scored matte paper", "gold foil", "technical crease notation"],
+      "viewport": "A partially unfolded champion field fills the screen, with the current reveal anchored to the next unlocked crease cell.",
+      "risk": "The geometric metaphor may slow a game meant to launch casually between matches.",
+      "sketch": ".impeccable/sketches/challenger-miura.png",
+      "hero": "https://impeccable.style/worlds/cards/paper-folds-pleats-deployable-miura-orbit-sheet-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/paper-folds-pleats-deployable-miura-orbit-sheet.webp"
+    },
+    {
+      "id": "challenger-elbow-console",
+      "label": "Party Console",
+      "lineage": "pill-cornered starship wall panels and color-banked control consoles",
+      "thesis": "Six bold console banks surround the active champion; one press reroutes that champion's part into the permanent build.",
+      "case": "Playful and fast with strong controls, though the sci-fi language is less specifically League-social than the ticket world.",
+      "palette": ["#050506", "#B9A4FF", "#FFAA83", "#F5CB55", "#899DFF"],
+      "materials": ["flat painted console glass", "pill controls", "numeric code labels"],
+      "viewport": "A sweeping elbow frame contains the reveal while six large color banks expose every available pick without scrolling.",
+      "risk": "The console may read as decorative fiction if labels and hierarchy do not remain brutally clear.",
+      "sketch": ".impeccable/sketches/challenger-elbow-console.png",
+      "hero": "https://impeccable.style/worlds/cards/pop-culture-shelf-elbow-panel-console-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/pop-culture-shelf-elbow-panel-console.webp"
+    }
+  ],
+  "reroll": true,
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A polished dark gaming interface with a champion splash, six ability cards, and a conventional results panel.",
+    "palette": ["#111827", "#E5E7EB", "#C69B3C", "#4FD1C5"],
+    "materials": ["dark panels", "metallic trim", "glowing ability icons"],
+    "viewport": "A centered champion card sits above a familiar six-card selection grid and primary lock button.",
+    "risk": "Immediately legible, but easy to mistake for any unofficial League companion tool.",
+    "sketch": ".impeccable/sketches/canon.png"
+  },
+  "steer": true
+}
