@@ -6,7 +6,11 @@ Each run gives you six champion reveals. For each one, permanently claim one rem
 
 ## Project Status
 
-BuildChamp is currently **planned but not yet implemented**. The product rules, technical architecture, champion-compatibility model, and implementation plan are documented. See [CURRENT_STATE.md](./CURRENT_STATE.md) for the concise, maintained implementation handoff.
+Slice 1, Project and UI Foundation, is implemented. The Vite application currently ships the
+responsive shell, home, solo-draft fixture, shared-result fixture, and recovery states. The
+champion snapshot and deterministic draft engine are intentionally not implemented yet; the solo
+route labels its interface-only data clearly. See [CURRENT_STATE.md](./CURRENT_STATE.md) for the
+concise, maintained implementation handoff.
 
 The plan is:
 
@@ -16,7 +20,7 @@ The plan is:
 4. Shared reveal and lobby voting
 5. Accounts, public voting, and leaderboards only if the earlier game proves worthwhile
 
-## Planned Stack
+## Stack
 
 - TypeScript, React, and Vite
 - Tailwind CSS with accessible Radix UI primitives where needed
@@ -35,6 +39,7 @@ The Markdown files are intentionally separated by responsibility:
 | Document | Purpose |
 | --- | --- |
 | [CURRENT_STATE.md](./CURRENT_STATE.md) | The compact handoff: present milestone, verified capabilities, next action, and active release blockers |
+| [DESIGN.md](./DESIGN.md) | The visual design system: palette, typography, layout, component treatment, and interface guardrails |
 | [PRODUCT.md](./PRODUCT.md) | The product contract: audience, game modes, draft rules, lobby behaviour, sharing, brand, accessibility, and deferred scope |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | The system design: frontend boundaries, Cloudflare topology, WebSocket protocol, persistence, security, performance, testing, and hosting portability |
 | [CHAMPION_DATA.md](./CHAMPION_DATA.md) | The gameplay-data contract: slot meanings, resource policy, portability tests, normalized schemas, patch sync, variants, and champion exceptions |
@@ -52,9 +57,29 @@ I use agentic AI tools to help plan and build BuildChamp. I review and test thei
 
 ## Local Development
 
-The application has not been scaffolded yet, so there are no install or run commands at this stage. Once Slice 1 of the implementation plan is complete, this section will document the exact supported commands for installing dependencies, running locally, testing, building, and previewing the Cloudflare deployment.
+Use pnpm from the repository root:
 
-Do not infer commands from the planned stack before `package.json` and the lockfile exist.
+```sh
+pnpm install
+pnpm dev
+pnpm typecheck
+pnpm lint
+pnpm format
+pnpm test
+pnpm build
+pnpm preview
+```
+
+The browser suite uses Playwright. Install its Chromium binary once on a new machine, then run:
+
+```sh
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+The current solo and result screens use explicitly labelled interface fixtures. No Data Dragon
+request or Riot asset is made at runtime, and no gameplay claims should be inferred from the
+fixture board.
 
 ## Core Rules
 
@@ -72,7 +97,7 @@ See [PRODUCT.md](./PRODUCT.md) and [CHAMPION_DATA.md](./CHAMPION_DATA.md) for th
 
 ## Riot Games and Asset Notice
 
-BuildChamp is an unofficial fan project and is not endorsed, sponsored, or operated by Riot Games. It is intended to be non-commercial in its initial releases. The planned product would use Riot-provided champion data, icons, and default artwork, but no Riot assets are included in the repository at this planning stage.
+BuildChamp is an unofficial fan project and is not endorsed, sponsored, or operated by Riot Games. It is intended to be non-commercial in its initial releases. The planned product may use Riot-provided champion data, icons, and default artwork, but no Riot assets are included in the repository at this foundation stage.
 
 Before any public release using Riot data or assets, the maintainer must confirm that the product is eligible under Riot's then-current policies and register it through the Riot Developer Portal as required. Riot's current policies contain specific restrictions for games and apps using Riot intellectual property, so this documentation does not claim approval or guarantee eligibility.
 
