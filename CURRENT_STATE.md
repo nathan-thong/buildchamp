@@ -4,10 +4,10 @@ Last updated: 2026-09-05
 
 ## Now
 
-- **Phase:** Slice 2, Champion Snapshot Pipeline, implemented and verified locally; the transformation/state audit is settled.
-- **Active milestone:** Start the deterministic draft engine after the completed snapshot and compatibility pass.
-- **Next action:** Start Slice 3, the deterministic draft engine, using the reviewed snapshot and base-champion variant identity rules.
-- **Runtime status:** Root Vite/React/TypeScript app, typed slot boundary, fixture routes, build-only Data Dragon importer, and a validated 16.17.1 English snapshot exist. The solo board remains an interface preview; no playable draft engine exists.
+- **Phase:** Slice 3, Pure Draft Engine, implemented and verified locally; the snapshot and compatibility pass remain settled.
+- **Active milestone:** Begin the solo gameplay integration after the completed deterministic engine.
+- **Next action:** Start Slice 4, joining the engine to the bundled snapshot and playable solo board.
+- **Runtime status:** Root Vite/React/TypeScript app, typed slot boundary, fixture routes, build-only Data Dragon importer, validated 16.17.1 English snapshot, and a pure deterministic draft engine exist. The solo board remains an interface preview; it has not yet been joined to the playable engine.
 
 ## Settled Direction
 
@@ -17,8 +17,9 @@ Last updated: 2026-09-05
 
 ## Verified Repository State
 
-- The initial repository foundation and Slice 2 implementation are committed on `main`; remote status is reported at handoff.
-- Slice 2 checks pass: `pnpm typecheck`, `pnpm test` (27 tests), `pnpm lint`, `pnpm format`, `pnpm build`, and `pnpm test:e2e` (5 browser journeys).
+- The initial repository foundation, Slice 2 implementation, and Slice 3 implementation are committed on `main`; remote status is reported at handoff.
+- Slice 3 adds immutable run/offer/selection/build/completion types, weighted base-champion generation, variant-aware no-repeat identity, adaptive legal-path checking, lock validation, final forced choice, random compatible autopick, fresh rematches, and normal/restricted/variant/adversarial fixtures.
+- Slice 3 checks pass: `pnpm typecheck`, `pnpm test` (37 tests), `pnpm lint`, `pnpm format`, `pnpm build`, and `pnpm test:e2e` (5 browser journeys).
 - The importer fetched and validated 173 champions from explicit Data Dragon version 16.17.1 (172 eligible, Aphelios excluded), retaining the prior 15.17.1 snapshot and reviewed exception data for Aphelios, Jayce, Hwei, Elise, Nidalee, Gnar, Shyvana, Rek'Sai, Kled, Kayn, and Viego.
 - Jayce Hammer/Cannon carry reviewed form-specific Body stats and Q/W/E values, cooldowns, and ranges: Hammer is melee at 125 range; Cannon is ranged at 500. Alternate values use versioned CommunityDragon data with Data Dragon fallback text/icons and regression coverage.
 - Elise Human/Spider and Nidalee Human/Cougar use the same base-champion identity and no-repeat behavior as Jayce. Their form-specific Body and Q/W/E data are source-backed; transformation and cross-form system slots remain unavailable.

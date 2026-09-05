@@ -6,11 +6,12 @@ Each run gives you six champion reveals. For each one, permanently claim one rem
 
 ## Project Status
 
-Slice 2, Champion Snapshot Pipeline, is implemented. The repository now contains a validated English
-Data Dragon 16.17.1 snapshot, deterministic source/cache/normalize/emit stages, reviewed champion
-compatibility entries covering shared systems and transformed states, and a generated patch report.
-The deterministic draft engine and playable solo route are intentionally not implemented yet; the
-existing board still labels its interface-only fixture data clearly. See
+Slice 3, Pure Draft Engine, is implemented. The repository now contains a validated English Data
+Dragon 16.17.1 snapshot, deterministic source/cache/normalize/emit stages, reviewed champion
+compatibility entries covering shared systems and transformed states, a generated patch report, and
+a pure deterministic engine with adaptive legal-path checking. The playable solo route is
+intentionally not implemented yet; the existing board still labels its interface-only fixture data
+clearly. See
 [CURRENT_STATE.md](./CURRENT_STATE.md) for the concise, maintained implementation handoff.
 
 The plan is:
