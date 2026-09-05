@@ -14,11 +14,12 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.{js,ts,json,html}\" \"tests/**/*.{ts,tsx}\"",
-    "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{js,ts,json,html}\" \"tests/**/*.{ts,tsx}\"",
+    "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.{ts,tsx}\" \"*.{js,ts,json,html}\" \"tests/**/*.{ts,tsx}\"",
+    "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.{ts,tsx}\" \"*.{js,ts,json,html}\" \"tests/**/*.{ts,tsx}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "sync:champion-data": "tsx scripts/sync-champion-data.ts"
   },
   "dependencies": {
     "react": "^19.1.1",
@@ -43,6 +44,7 @@
     "jsdom": "^26.1.0",
     "prettier": "^3.6.2",
     "tailwindcss": "^4.1.12",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.39.1",
     "vite": "^7.1.3",

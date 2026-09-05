@@ -48,7 +48,7 @@ Produce the first immutable, validated English champion-data snapshot.
 - Implement source fetch, cache, normalize, and emit stages.
 - Add Zod schemas for raw inputs, the normalized snapshot, and compatibility manifest.
 - Import base stats, growth, attack range/type, movement speed, abilities, descriptions, values, icons, and default artwork references.
-- Apply Aphelios, Jayce, and Hwei rulings.
+- Apply Aphelios, Jayce, Hwei, and the reviewed transformed-state compatibility rulings.
 - Generate eligibility indexes and a human-readable patch change report.
 - Add provenance, snapshot version, and generation metadata.
 - Add the Riot notice and asset-policy checks to the release checklist.

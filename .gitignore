@@ -9,6 +9,7 @@ playwright-report/
 test-results/
 .vite/
 .wrangler/
+.cache/
 
 # Local environment and secrets
 .env

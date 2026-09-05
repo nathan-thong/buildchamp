@@ -6,11 +6,12 @@ Each run gives you six champion reveals. For each one, permanently claim one rem
 
 ## Project Status
 
-Slice 1, Project and UI Foundation, is implemented. The Vite application currently ships the
-responsive shell, home, solo-draft fixture, shared-result fixture, and recovery states. The
-champion snapshot and deterministic draft engine are intentionally not implemented yet; the solo
-route labels its interface-only data clearly. See [CURRENT_STATE.md](./CURRENT_STATE.md) for the
-concise, maintained implementation handoff.
+Slice 2, Champion Snapshot Pipeline, is implemented. The repository now contains a validated English
+Data Dragon 16.17.1 snapshot, deterministic source/cache/normalize/emit stages, reviewed champion
+compatibility entries covering shared systems and transformed states, and a generated patch report.
+The deterministic draft engine and playable solo route are intentionally not implemented yet; the
+existing board still labels its interface-only fixture data clearly. See
+[CURRENT_STATE.md](./CURRENT_STATE.md) for the concise, maintained implementation handoff.
 
 The plan is:
 
@@ -44,6 +45,7 @@ The Markdown files are intentionally separated by responsibility:
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | The system design: frontend boundaries, Cloudflare topology, WebSocket protocol, persistence, security, performance, testing, and hosting portability |
 | [CHAMPION_DATA.md](./CHAMPION_DATA.md) | The gameplay-data contract: slot meanings, resource policy, portability tests, normalized schemas, patch sync, variants, and champion exceptions |
 | [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | The build order: twelve vertical slices with acceptance criteria for the Solo MVP and Private Lobby MVP |
+| [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) | The snapshot, Riot policy, registration, notice, and asset-eligibility release gates |
 | [AGENTS.md](./AGENTS.md) | Operating instructions for coding agents working in this repository, including required reading and non-negotiable invariants |
 | [REPOSITORY_WORKFLOW.md](./REPOSITORY_WORKFLOW.md) | On-demand branch, staging, commit, push, handoff, and README-maintenance policy |
 
@@ -79,7 +81,16 @@ pnpm test:e2e
 
 The current solo and result screens use explicitly labelled interface fixtures. No Data Dragon
 request or Riot asset is made at runtime, and no gameplay claims should be inferred from the
-fixture board.
+fixture board. To refresh the pinned snapshot deliberately, provide an explicit version and stable
+generation timestamp:
+
+```sh
+pnpm sync:champion-data -- --version 16.17.1 --generated-at 2026-09-05T00:00:00.000Z
+```
+
+The importer writes versioned JSON under `src/data/snapshots/` and a review report under
+`data/champion-reports/`. Use [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) before any public
+release containing Riot data or assets.
 
 ## Core Rules
 
@@ -90,7 +101,7 @@ fixture board.
 - Before the final round, every displayed offer provides at least two valid choices.
 - Ordinary mana and energy costs are ignored; health costs remain.
 - Components may carry self-contained mechanics but cannot create or overwrite another chosen slot.
-- Aphelios is excluded initially; Jayce uses Hammer/Cannon variants; Hwei's basic spellbooks are packaged by slot.
+- Aphelios is excluded initially; Jayce, Elise, Nidalee, Gnar, and Kayn use reviewed fixed-form variants; Hwei's basic spellbooks are packaged by slot. Other temporary transformation cycles follow the ownership rulings in [CHAMPION_DATA.md](./CHAMPION_DATA.md).
 - BuildChamp never assigns an automated power score. Players decide which build is strongest.
 
 See [PRODUCT.md](./PRODUCT.md) and [CHAMPION_DATA.md](./CHAMPION_DATA.md) for the complete rules.

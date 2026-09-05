@@ -123,6 +123,17 @@ type ChampionSnapshot = {
     provider: "riot-data-dragon";
     versionUrl: string;
   };
+  generation: {
+    importerVersion: string;
+    sourceHash: string;
+    sourceChampionCount: number;
+  };
+  indexes: {
+    eligibleChampionIds: string[];
+    excludedChampionIds: string[];
+    variantIdsByChampionId: Record<string, string[]>;
+    selectableComponentIdsBySlot: Record<Slot, string[]>;
+  };
   champions: Champion[];
 };
 
@@ -157,12 +168,47 @@ type Component = {
   shortDescription: string;
   fullDescription: string;
   cooldown?: DisplayValue;
+  cooldowns?: DisplayValue[]; // One entry per source spell in a package
   range?: DisplayValue;
+  ranges?: DisplayValue[];    // One entry per source spell in a package
+  healthCost?: DisplayValue;
+  healthCosts?: DisplayValue[];
   values: DisplayValue[];
   availability: Availability;
   dependencies: Dependency[];
   carriedMechanics: CarriedMechanic[];
   sourceRefs: string[];
+  bodyStats?: BodyStats;      // Required when slot is Body
+};
+
+type BodyStats = {
+  base: Record<string, number>;
+  growth: Record<string, number>;
+  attackRange: number;
+  attackType: "melee" | "ranged";
+  movementSpeed: number;
+};
+
+type ComponentOverride = {
+  availability?: Availability;
+  bodyStats?: {
+    base?: Partial<Record<string, number>>;
+    growth?: Partial<Record<string, number>>;
+    attackRange?: number;
+    attackType?: "melee" | "ranged";
+    movementSpeed?: number;
+    sourceRefs: string[];
+  };
+  sourceSpellIds?: string[];
+  fallbackSourceSpellIds?: string[]; // One Data Dragon text/icon fallback per alternate source spell
+  sourceDataValueNames?: string[]; // Select named values when an alternate source contains multiple forms
+  sourceDataValueSourceSpellIds?: string[]; // Alternate records that own the selected named values
+  sourceDataValueMultipliers?: Record<string, number>; // Reviewed display normalization for selected values
+  name?: string;
+  shortDescription?: string;
+  fullDescription?: string;
+  dependencies?: Dependency[];
+  carriedMechanics?: CarriedMechanic[];
 };
 
 type DisplayValue = {
@@ -200,12 +246,29 @@ type CompatibilityManifest = {
       componentOverrides: Partial<Record<Slot, ComponentOverride>>;
     }>;
     notes: string[];
+    sourceRefs: string[];
     reviewedForDataDragonVersion: string;
   }>;
 };
 ```
 
-An override may change availability, explain dependencies, package approved subspells, or point to a form-specific source spell. It may not silently alter official numerical values.
+An override may change availability, explain dependencies, package approved subspells, point to a
+form-specific source spell, provide reviewed player-facing text for a source record that contains
+several forms, or provide a partial form-specific Body-stat override. A Body-stat override must carry
+its own source references and may not silently alter official numerical values. A source spell ID with
+the `communitydragon:` prefix is resolved from the versioned alternate-spell source; its matching
+`fallbackSourceSpellIds` entry supplies Data Dragon text, icon, cost, and any field not exposed by the
+alternate source. `sourceDataValueNames` selects only the named values needed for the reviewed form
+when one alternate record contains values for several forms. `sourceDataValueMultipliers` is limited to
+explicit, reviewed display conversions such as a source ratio that the tooltip presents as a percentage.
+When a form’s cast record and its named values live in different CommunityDragon records,
+`sourceDataValueSourceSpellIds` identifies the value record one-for-one with `sourceSpellIds`.
+The importer preserves package cooldowns and ranges as plural display values and strips source markup to
+plain text.
+
+Data Dragon sometimes exposes Hwei's three subject spellbooks and Jayce's paired forms inside one
+source spell record rather than as separate IDs. The manifest selects those records and narrows only
+the reviewed presentation; source values remain traceable through `sourceRefs`.
 
 Every manifest change must include:
 
@@ -230,7 +293,80 @@ Jayce has two draft variants under one base-champion identity:
 - **Jayce — Hammer:** form-specific Body, Q, W, and E
 - **Jayce — Cannon:** form-specific Body, Q, W, and E
 
-R and Passive are unavailable for both variants because transformation and stance ownership depend on the paired kit. A run first weights Jayce once, then selects one eligible variant; variants do not give Jayce extra probability. Jayce cannot appear again in the same run in another form.
+R owns the stance switch. Passive only triggers when Jayce swaps weapons, so both are unavailable in a fixed-form variant because the paired stance-switch system is omitted. A run first weights Jayce once, then selects one eligible variant; variants do not give Jayce extra probability. Jayce cannot appear again in the same run in another form.
+
+Jayce's form-specific Q/W/E values, cooldowns, and ranges are sourced from the versioned CommunityDragon game-data record. Data Dragon remains the fallback for the shared text and icon record, while the manifest supplies each form's reviewed presentation.
+
+### Elise
+
+Elise has two draft variants under one base-champion identity:
+
+- **Elise — Human:** form-specific Body, Q, W, and E
+- **Elise — Spider:** form-specific Body, Q, W, and E
+
+R owns Spider Form transformation, while Passive owns Spiderling generation and form-linked effects. Both depend on the paired original kit, so they are unavailable in a fixed-form variant. A run first weights Elise once, then selects one eligible variant; the variants do not give Elise extra probability or bypass the no-repeat rule.
+
+Human and Spider Body stats use separate reviewed form values. Human Q selects only the human values from a CommunityDragon record that also contains Spider values. Spider Q uses the source-backed QCast hit subspell, and Spider E uses the initial Rappel cast. CommunityDragon supplies the form-specific cooldowns, ranges, and named values; Data Dragon remains the text, icon, and fallback source.
+
+### Nidalee
+
+Nidalee has two draft variants under one base-champion identity:
+
+- **Nidalee — Human:** form-specific Body, Q, W, and E
+- **Nidalee — Cougar:** form-specific Body, Q, W, and E
+
+R owns the Human/Cougar transformation, while Passive owns Prowl/Hunt marks and their cross-form bonuses. Both depend on the paired original kit, so they are unavailable in a fixed-form variant. A run weights Nidalee once, then selects one eligible variant; the variants do not give Nidalee extra probability or bypass the no-repeat rule.
+
+Human and Cougar Body stats use separate reviewed form values. Cougar Q, W, and E use their own CommunityDragon cast records for cooldowns and ranges while selecting their named damage values from AspectOfTheCougar, the source record that stores those three Cougar tooltip packages. Data Dragon remains the text, icon, and fallback source.
+
+### Gnar
+
+Gnar has two draft variants under one base-champion identity:
+
+- **Gnar — Mini:** form-specific Body, Q, W, and E
+- **Gnar — Mega:** form-specific Body, Q, W, E, and R
+
+Mini R is unavailable because GNAR! can only be cast while Gnar is in Mega Form. Mega R is available because it is Mega's active attack, not the transformation itself. Passive is unavailable for both variants because Rage Gene owns the shared Rage resource and the Mini/Mega transformation lifecycle. A run weights Gnar once, then selects one eligible variant; the variants do not give Gnar extra probability or bypass the no-repeat rule.
+
+Mini and Mega Body carry their form-local attack types and ranges. The source-defined level-scaling Mini movement, attack-speed, and attack-range bonuses and Mega health, armor, magic-resistance, and attack-damage bonuses remain attached to the selected Body variant rather than reintroducing Rage or transformation state. Mega Q/W/E use the separate GnarBig cast records where available and select named values from the shared Gnar Q/W/E records when CommunityDragon stores those values there.
+
+### Transformation and state audit
+
+The 16.17.1 roster audit uses one consistent boundary: create fixed draft variants when a
+champion's alternate state changes Body or replaces another selectable slot outside the state
+owner. Keep a state-changing ability in the normal variant when it is an active, temporary package
+that does not require a second permanently selectable kit. A passive that selects or creates an
+arbitrary other kit is unavailable unless a finite, source-backed form variant resolves that choice.
+
+The reviewed outcomes are:
+
+| Champion or system | Reviewed BuildChamp treatment |
+| --- | --- |
+| Jayce | Hammer and Cannon variants; R owns the switch and Passive is unavailable in both. |
+| Elise | Human and Spider variants; R owns the switch and Passive is unavailable in both. |
+| Nidalee | Human and Cougar variants; R owns the switch and Passive is unavailable in both. |
+| Gnar | Mini and Mega variants; Passive is unavailable in both; R is unavailable on Mini and available on Mega. |
+| Kayn | Rhaast and Shadow Assassin variants; the permanent Passive choice is resolved by the variant, form-local Q/W/E/R values are carried, and temporary Umbral Trespass remains available. |
+| Kled | One coherent Mounted variant; Passive is unavailable and Q is narrowed to Bear Trap on a Rope. Dismounted Kled is not offered until its complete Body and kit can be represented without guessed values. |
+| Shyvana | One normal Dragon-cycle variant; R owns Fury and temporary Dragon Form, while Passive remains available because Scalemail only stacks armor and magic resistance. No permanently weaker Human or permanently locked Dragon roll is created. |
+| Rek'Sai | One normal Burrow-cycle variant; W owns Burrow/Un-burrow, Q and E own their alternate casts, Passive owns Fury and its Burrowed healing consumer, and R remains independent. |
+| Rell | One normal variant; W owns the temporary mounted/dismounted package and Passive remains independent. |
+| Bel'Veth, K'Sante, Aatrox, Renekton, Swain | One normal variant; each R owns a temporary active transformation or steroid without creating a second selectable kit. |
+| Viego | One default-kit variant; Passive is unavailable because possession can replace Body, basic abilities, items, and Ultimate with arbitrary champion content. |
+| Udyr | One normal variant; Passive owns stance recasts and awakenings inside the four ability slots, not a separate Body form. |
+| Kayle | One normal variant; Passive owns level-based ascension and attack progression, not a separately rolled form. |
+| Aphelios | Excluded; weapons, ammunition, range, Q, and Passive progression remain one inseparable system. |
+
+Other stateful descriptions found in the roster—such as Ashe's Q flurry, Jinx's Q weapon swap,
+Kha'Zix's R evolutions, Kai'Sa's Passive upgrades, Qiyana's W elements, Riven's R empowerment,
+Nasus's R steroid, and similar temporary recasts, deaths, camouflage, or stacking progressions—stay
+in their ordinary champion variant. They alter an ability's own state or provide a temporary effect,
+but do not create a second Body or replace a different selectable slot. This is an audit boundary,
+not an assumption that every source description containing the word “form” needs a new roll.
+
+Kayn, Kled, Rek'Sai, Shyvana, and Viego have explicit compatibility-manifest entries and regression
+coverage. The remaining normal-variant outcomes are recorded here because the portability test
+passes without a data override.
 
 ### Hwei
 
