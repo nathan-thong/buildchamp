@@ -11,12 +11,12 @@ public distribution.
       affected compatibility exceptions.
 - [x] Run `pnpm typecheck`, `pnpm lint`, `pnpm format`, `pnpm test`, `pnpm build`, and
       `pnpm test:e2e`.
-- [x] Confirm the current app makes no Data Dragon network request at runtime; gameplay wiring is
-      deferred to Slice 3/4 and the importer is build-only.
+- [x] Confirm the current app uses only the bundled snapshot at runtime and makes no Data Dragon
+      network request; the importer remains build-only.
 - [x] Retain the existing 15.17.1 snapshot alongside the new 16.17.1 snapshot.
 
-Local verification recorded 2026-09-05: 173 champions imported from Data Dragon 16.17.1, 172
-eligible and Aphelios excluded; 27 automated tests and 5 browser journeys passed.
+Local verification recorded 2026-09-06: 173 champions imported from Data Dragon 16.17.1, 172
+eligible and Aphelios excluded; 53 automated tests and 7 browser journeys passed.
 
 ## Riot policy and asset gate
 

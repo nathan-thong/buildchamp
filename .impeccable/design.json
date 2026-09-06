@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-04T17:00:00+10:00",
+  "generatedAt": "2026-09-06T17:51:29+10:00",
   "title": "Design System: BuildChamp",
   "extensions": {
     "colorMeta": {
@@ -201,16 +201,18 @@
       }
     ],
     "dos": [
-      "Do keep the six slots in Body, Q, W, E, R, Passive order.",
-      "Do label illustrative fixtures honestly.",
-      "Do keep the central reveal and recovery action prominent on mobile.",
-      "Do use direct, factual copy for actions, rules, and states."
+      "Do make the six-slot mechanism visible before secondary explanation.",
+      "Do use Helvetica Neue or a similarly sturdy neutral grotesk for display headings.",
+      "Do keep gold for decisions and teal for status, with text labels for both.",
+      "Do label the fixture and keep the solo route untimed and account-free.",
+      "Do use direct, factual UI copy that tells the player what to do next."
     ],
     "donts": [
-      "Don't use Riot or League logos as BuildChamp identity.",
-      "Don't turn the board into a stats dashboard.",
-      "Don't use color, motion, or sound as the only state signal.",
-      "Don't add ticket perforations, faux-paper edges, stamps, or marketing-style trailer copy."
+      "Don't use ticket, perforation, stamp, or faux-paper motifs.",
+      "Don't use Riot or League logos, artwork, or implied endorsement as BuildChamp identity.",
+      "Don't use an Impact-style or novelty-condensed display stack.",
+      "Don't turn the interface into a stats dashboard or add an automated strength score.",
+      "Don't make marketing language, color, motion, or sound the only explanation of a state."
     ]
   }
 }

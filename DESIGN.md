@@ -210,9 +210,9 @@ sound control.
 
 ### Reveal Field
 
-The champion fixture uses a deep blue field, measured orbit lines, a serial stamp, and a teal scanline.
-It is explicitly labelled as a fixture until the validated snapshot arrives; the geometry is a temporary
-visual, not a claim about a real champion.
+The home champion-board fixture uses a deep blue field, measured orbit lines, a serial stamp, and a
+teal scanline. It is explicitly labelled as a fixture; the `/solo` route uses the validated snapshot's
+artwork and component details. The geometry is a temporary visual, not a claim about a real champion.
 
 ### Recovery States
 
