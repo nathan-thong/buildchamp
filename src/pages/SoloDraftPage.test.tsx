@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -35,24 +35,67 @@ class MemoryStorage implements Storage {
   }
 }
 
+const SLOT_LABELS = {
+  body: 'Body',
+  q: 'Q',
+  w: 'W',
+  e: 'E',
+  r: 'R',
+  passive: 'Passive',
+} as const;
+
+function firstChoice(): HTMLButtonElement {
+  const choice = document.querySelector<HTMLButtonElement>('button[data-choice-slot]');
+  if (!choice) {
+    throw new Error('No component choice was rendered.');
+  }
+
+  return choice;
+}
+
+async function completeRun(user: ReturnType<typeof userEvent.setup>) {
+  for (let lock = 0; lock < 6; lock += 1) {
+    const choice = firstChoice();
+    const draftSlot = choice.dataset.choiceSlot as keyof typeof SLOT_LABELS;
+    await user.click(choice);
+    await user.click(
+      screen.getByRole('button', { name: `Lock ${SLOT_LABELS[draftSlot]} permanently` }),
+    );
+  }
+}
+
 describe('solo gameplay', () => {
-  it('keeps draft choices compact and exposes one expandable details panel', async () => {
+  it('opens one offer disclosure in a popup and restores the card layout on close', async () => {
     const user = userEvent.setup();
     render(<SoloDraftPage storage={new MemoryStorage()} random={createSeededRandom(3)} />);
 
-    expect(screen.queryByRole('img', { name: /champion artwork/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/live snapshot/i)).toBeInTheDocument();
-    expect(screen.queryByText(/example champion/i)).not.toBeInTheDocument();
-    expect(screen.getAllByText('Full details')).toHaveLength(6);
+    expect(screen.getByRole('heading', { name: 'Choose one part to keep.' })).toBeInTheDocument();
+    expect(document.querySelector('.panel__status')).toHaveTextContent('Patch 16.17.1');
+    expect(screen.getAllByRole('button', { name: /full details for/i })).toHaveLength(6);
 
-    await user.click(screen.getAllByRole('button', { name: 'Full details' })[0]!);
+    const firstDisclosure = screen.getAllByRole('button', { name: /full details for/i })[0]!;
+    const secondDisclosure = screen.getAllByRole('button', { name: /full details for/i })[1]!;
+    const firstDetailsId = firstDisclosure.getAttribute('aria-controls');
 
-    expect(screen.getByRole('region', { name: 'Expanded component details' })).toBeInTheDocument();
-    expect(screen.getAllByRole('region', { name: 'Expanded component details' })).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Hide details' })).toBeInTheDocument();
+    expect(firstDetailsId).toBeTruthy();
+    expect(document.getElementById(firstDetailsId!)).toHaveAttribute('hidden');
+
+    await user.click(firstDisclosure);
+
+    expect(firstDisclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(document.getElementById(firstDetailsId!)).not.toHaveAttribute('hidden');
+    expect(screen.getAllByRole('dialog', { name: /details for/i })).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: /close details for/i }));
+
+    await user.click(secondDisclosure);
+
+    expect(firstDisclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(secondDisclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByRole('dialog', { name: /details for/i })).toHaveLength(1);
   });
 
-  it('shows unavailable components without making them selectable', () => {
+  it('shows unavailable components without making them selectable or calling them portable', () => {
     render(
       <SoloDraftPage
         random={createSeededRandom(4)}
@@ -64,9 +107,10 @@ describe('solo gameplay', () => {
     expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Requires original kit.').length).toBeGreaterThan(0);
     expect(screen.queryAllByRole('button', { name: /unavailable/i })).toHaveLength(0);
+    expect(screen.queryByText('Portable')).not.toBeInTheDocument();
   });
 
-  it('requires a deliberate confirmation and restores a locked choice after remount', async () => {
+  it('keeps selection provisional until one explicit lock and restores locked choices after remount', async () => {
     const user = userEvent.setup();
     const storage = new MemoryStorage();
     const props = {
@@ -76,25 +120,54 @@ describe('solo gameplay', () => {
     } as const;
     const first = render(<SoloDraftPage {...props} />);
 
-    await user.click(screen.getByRole('button', { name: /01 \/ body/i }));
-    const lockButton = screen.getByRole('button', { name: 'Lock Body' });
-    await user.click(lockButton);
+    const bodyChoice = screen.getByRole('button', { name: /01 \/ body/i });
+    await user.click(bodyChoice);
+    expect(bodyChoice).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Lock Body permanently' })).toBeEnabled();
 
-    expect(screen.getByRole('alert')).toHaveTextContent(/cannot be changed/i);
-    expect(screen.getByRole('button', { name: 'Confirm lock Body' })).toBeInTheDocument();
+    const qChoice = screen.getByRole('button', { name: /02 \/ q/i });
+    await user.click(qChoice);
+    expect(bodyChoice).toHaveAttribute('aria-pressed', 'false');
+    expect(qChoice).toHaveAttribute('aria-pressed', 'true');
 
-    await user.click(screen.getByRole('button', { name: 'Confirm lock Body' }));
-    expect(screen.getByRole('listitem', { name: /body slot, locked/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Lock Q permanently' }));
+
+    expect(screen.getByRole('listitem', { name: /q slot, locked/i })).toBeInTheDocument();
+    expect(document.querySelector('.round-counter')).toHaveAccessibleName('Round 2 of six');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /Q locked permanently\. New offer: (alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel)\. Round 2 of six/i,
+    );
+    expect(screen.queryByRole('button', { name: /confirm lock/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose a component' })).toBeDisabled();
+    expect(document.activeElement).toHaveTextContent('Choose one part to keep.');
     expect(storage.getItem(SOLO_RUN_STORAGE_KEY)).toContain('"round":1');
 
     first.unmount();
     render(<SoloDraftPage {...props} />);
 
-    expect(screen.getByRole('listitem', { name: /body slot, locked/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/round 2 of six/i)).toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: /q slot, locked/i })).toBeInTheDocument();
+    expect(document.querySelector('.round-counter')).toHaveAccessibleName('Round 2 of six');
   });
 
-  it('reveals the six-part build and starts Play Again with a fresh run', async () => {
+  it('guards rapid repeated lock activation and commits only once', () => {
+    render(
+      <SoloDraftPage
+        random={createSeededRandom(7)}
+        snapshot={NORMAL_DRAFT_FIXTURE}
+        storage={new MemoryStorage()}
+      />,
+    );
+
+    fireEvent.click(firstChoice());
+    const lockButton = screen.getByRole('button', { name: /lock .* permanently/i });
+    fireEvent.click(lockButton);
+    fireEvent.click(lockButton);
+
+    expect(document.querySelector('.round-counter')).toHaveAccessibleName('Round 2 of six');
+    expect(screen.getAllByRole('listitem', { name: /locked/i })).toHaveLength(1);
+  });
+
+  it('reveals the six-part build, exposes every source, and starts Play Again fresh', async () => {
     const user = userEvent.setup();
     const storage = new MemoryStorage();
     render(
@@ -105,46 +178,28 @@ describe('solo gameplay', () => {
       />,
     );
 
-    for (let lock = 0; lock < 6; lock += 1) {
-      const choice = screen
-        .getAllByRole('button')
-        .find((button) => button.hasAttribute('data-choice-slot'));
-      if (!choice) {
-        throw new Error(`No component choice was available for lock ${lock + 1}.`);
-      }
-
-      const draftSlot = choice.getAttribute('data-choice-slot');
-      const labels = {
-        body: 'Body',
-        q: 'Q',
-        w: 'W',
-        e: 'E',
-        r: 'R',
-        passive: 'Passive',
-      } as const;
-      const label = labels[draftSlot as keyof typeof labels];
-      await user.click(choice);
-      await user.click(screen.getByRole('button', { name: `Lock ${label}` }));
-      await user.click(screen.getByRole('button', { name: `Confirm lock ${label}` }));
-    }
+    await completeRun(user);
 
     expect(screen.getByRole('heading', { name: 'Your composite champion' })).toBeInTheDocument();
-    const bodyLabel = screen.getByText('Body').parentElement;
-    expect(bodyLabel).toHaveClass('champion-art__body-label');
-    expect(bodyLabel).toHaveTextContent(/^Body/);
-    expect(bodyLabel?.querySelector('strong')?.textContent).toBeTruthy();
-    expect(screen.queryByText('Default form')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Composite ability icons' })).toBeInTheDocument();
     expect(
       screen.getByRole('group', { name: 'Composite ability icons' }).querySelectorAll('img'),
     ).toHaveLength(5);
     expect(screen.getAllByRole('article')).toHaveLength(6);
-    expect(screen.getByText(/six parts/i)).toBeInTheDocument();
-    expect(screen.getByText(/no automated power score/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /full details for/i })).toHaveLength(6);
+    expect(
+      screen.getAllByText(/from (alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel)/i),
+    ).not.toHaveLength(0);
+    expect(screen.queryByText(/no score/i)).not.toBeInTheDocument();
+
+    const firstDetailsButton = screen.getAllByRole('button', { name: /full details for/i })[0]!;
+    await user.click(firstDetailsButton);
+    expect(screen.getAllByRole('dialog', { name: /details for/i })).toHaveLength(1);
 
     await user.click(screen.getByRole('button', { name: /play again/i }));
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Choose a slot' })).toBeInTheDocument();
-    expect(screen.getByLabelText(/round 1 of six/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Choose one part to keep.' })).toBeInTheDocument();
+    expect(document.querySelector('.round-counter')).toHaveAccessibleName('Round 1 of six');
     expect(
       screen.queryByRole('heading', { name: 'Your composite champion' }),
     ).not.toBeInTheDocument();

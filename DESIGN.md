@@ -34,12 +34,27 @@ typography:
     fontFamily: 'Avenir Next, Helvetica Neue, Helvetica, Arial, sans-serif'
     fontSize: '16px'
     lineHeight: 1.5
+  description:
+    fontFamily: 'Avenir Next, Helvetica Neue, Helvetica, Arial, sans-serif'
+    fontSize: '0.875rem'
+    lineHeight: 1.5
   label:
     fontFamily: 'Avenir Next, Helvetica Neue, Helvetica, Arial, sans-serif'
-    fontSize: '0.62rem'
+    fontSize: '0.75rem'
     fontWeight: 700
     letterSpacing: '0.12em'
     lineHeight: 1.3
+  meta:
+    fontFamily: 'SFMono-Regular, Monaco, Consolas, Liberation Mono, monospace'
+    fontSize: '0.6875rem'
+    fontWeight: 700
+    letterSpacing: '0.05em'
+    lineHeight: 1.3
+  cardTitle:
+    fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif'
+    fontSize: '1.125rem'
+    fontWeight: 700
+    lineHeight: 1.05
   mono:
     fontFamily: 'SFMono-Regular, Monaco, Consolas, Liberation Mono, monospace'
 rounded:
@@ -143,7 +158,10 @@ measurements.
 - **Headline** (700, `clamp(3.5rem, 7vw, 7rem)`, `0.84`): Draft and result route headings.
 - **Title** (700, `clamp(2rem, 4vw, 3.8rem)`, `0.86`): Choice panels, board titles, and section headings.
 - **Body** (400, `16px`, `1.5`): Instructions and fixture explanations, kept to a practical reading measure.
-- **Label** (700, `0.62rem`, `0.12em`, uppercase): Route status and compact UI labels.
+- **Description** (400, `0.875rem`, `1.5`): Ability summaries, component details, and supporting copy.
+- **Card title** (700, `1.125rem`, `1.05`): Champion and component names; essential names wrap rather than truncate.
+- **Label** (700, `0.75rem`, `0.12em`, uppercase): Slot labels and meaningful compact UI labels.
+- **Meta** (700, `0.6875rem`, mono, uppercase): Patch, round, state, and other secondary metadata.
 
 ### Named Rules
 
@@ -158,9 +176,11 @@ champion board occupies the right. The board contains the current fixture, a sho
 six-slot strip. A small horizontal explanation section follows below the first decision.
 
 Draft and result routes reuse the same large heading, round rail, reveal field, and six-slot language.
-At `1120px` the draft board moves to two columns, at `820px` it stacks with the reveal first, and at
-`640px` the header navigation yields to the mark and sound control. Home board slots move from six to
-three columns on narrow screens; choice and result grids move from three to two.
+At `1120px` the draft board gives the choice area two columns and keeps the build reference narrower;
+at `960px` it stacks in reading order as offer, build, choices. Narrow drafts use a compact three-column
+build strip with an explicit expand control, while full build details use two columns below `640px`.
+At `640px` the header navigation yields to the mark and sound control. Home board slots move from six to
+three columns on narrow screens; choice and result grids move from three to two and then one column.
 
 ## Elevation & Depth
 
@@ -201,6 +221,15 @@ cutouts.
 - **Champion board:** A dark framed field with the synthetic fixture, a compact title, and six slot cells.
 - **Slot card:** A square-edged location with text first, a small authored glyph, and explicit open,
   selected, or locked wording.
+- **Component disclosure:** Full ability and body details open in a fixed, scrollable dialog from a
+  labelled disclosure trigger. The same read-only presentation is used for locked build entries and
+  completion; the dialog closes with its Close control, backdrop click, or Escape.
+- **Build reference:** Six labelled positions remain visible throughout a draft; each identifies slot,
+  source champion, ability, icon, and persistent open/locked state. The compact mobile form can expand
+  to the full reference without changing draft state.
+- **Lock bar:** The selection summary and one explicit permanent-lock action stay reachable while browsing.
+  Before selection it gives a concise disabled instruction; after selection it names the slot, source,
+  component, and permanence warning.
 
 ### Navigation
 
@@ -218,7 +247,16 @@ artwork and component details. The geometry is a temporary visual, not a claim a
 
 Loading, error, unavailable-result, and not-found states share the board surface, a direct heading,
 short recovery copy, and one clear action where recovery is possible. Motion is optional and never the
-only state signal.
+only state signal. Artwork has both an intentional loading treatment and a labelled fallback, while a
+failed local draft lock retains the player's usable decision path and exposes a recoverable message.
+
+### Completion
+
+The completed solo build leads with one composition: Body artwork plus five visibly labelled ability
+slots. Source champions and component names are available without hover, actions appear before the long
+inspection section, and there is no automated score or inert share control. The inspection grid uses a
+shared card frame per responsive row with a reserved source-label band, keeping Body and ability sections
+aligned while preserving their different content lengths.
 
 ## Do's and Don'ts
 

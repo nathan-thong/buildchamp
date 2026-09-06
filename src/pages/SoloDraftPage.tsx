@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { AppLink } from '../components/AppLink';
 import { ChampionArtwork, type ChampionArtworkAbility } from '../components/ChampionArtwork';
-import { ComponentCard, ComponentDetailsPanel } from '../components/ComponentCard';
+import { ComponentCard, ComponentDetailsPopover } from '../components/ComponentCard';
 import { RoundRail } from '../components/RoundRail';
 import { BUNDLED_CHAMPION_SNAPSHOT } from '../data/runtime-snapshot';
 import type { Champion, ChampionSnapshot, Component, DraftVariant } from '../data/snapshot-schema';
@@ -48,16 +48,20 @@ export function SoloDraftPage({
 }: SoloDraftPageProps = {}) {
   const randomRef = useRef<RandomSource>(random ?? Math.random);
   const storageRef = useRef<Storage | undefined>(storage ?? getSoloRunStorage());
+  const offerHeadingRef = useRef<HTMLHeadingElement>(null);
+  const shouldFocusOfferHeadingRef = useRef(false);
+  const lockInProgressRef = useRef(false);
+  const committedLockKeyRef = useRef<string | null>(null);
   const [run, setRun] = useState<RunState>(() => {
     const recovered = readSoloRun(snapshot, storageRef.current);
     return recovered ?? createRun(snapshot, randomRef.current);
   });
   const [selectedSelection, setSelectedSelection] = useState<Selection | null>(null);
   const [expandedSlot, setExpandedSlot] = useState<DraftSlot | null>(null);
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [announcement, setAnnouncement] = useState(
-    'Choose one open component, then lock it permanently.',
-  );
+  const [expandedBuildSlot, setExpandedBuildSlot] = useState<DraftSlot | null>(null);
+  const [lockError, setLockError] = useState<string | null>(null);
+  const [isLocking, setIsLocking] = useState(false);
+  const [announcement, setAnnouncement] = useState('Choose one part to keep.');
 
   useEffect(() => {
     if (run.status === 'drafting') {
@@ -67,6 +71,15 @@ export function SoloDraftPage({
     }
   }, [run]);
 
+  useEffect(() => {
+    if (run.status !== 'drafting' || !shouldFocusOfferHeadingRef.current) {
+      return;
+    }
+
+    shouldFocusOfferHeadingRef.current = false;
+    offerHeadingRef.current?.focus();
+  }, [run]);
+
   if (run.status === 'complete') {
     return (
       <CompletedDraft
@@ -74,10 +87,12 @@ export function SoloDraftPage({
         snapshot={snapshot}
         onPlayAgain={() => {
           clearSoloRun(storageRef.current);
+          shouldFocusOfferHeadingRef.current = true;
           setRun(freshRematch(snapshot, randomRef.current));
           setSelectedSelection(null);
           setExpandedSlot(null);
-          setIsConfirming(false);
+          setExpandedBuildSlot(null);
+          setLockError(null);
           setAnnouncement('Fresh run started. Choose one open component.');
         }}
       />
@@ -88,7 +103,11 @@ export function SoloDraftPage({
   const selectedSlot = selectedSelection?.slot ?? null;
   const openSlots = DRAFT_SLOT_ORDER.filter((slot) => !run.lockedBuild[slot]);
   const selectedSlotLabel = selectedSlot ? DISPLAY_SLOT_BY_DRAFT_SLOT[selectedSlot] : null;
-  const expandedComponent = expandedSlot ? run.offer.components[expandedSlot] : undefined;
+  const selectedDetails = selectedSelection
+    ? findSelectionDetails(snapshot, selectedSelection)
+    : null;
+  const choiceState =
+    openSlots.length === 1 ? 'Final slot · lock it to finish' : `${openSlots.length} slots open`;
 
   function handleSelect(slot: DraftSlot) {
     if (run.status !== 'drafting' || run.lockedBuild[slot]) {
@@ -98,54 +117,63 @@ export function SoloDraftPage({
     try {
       const selection = selectionForSlot(run.offer, slot);
       setSelectedSelection(selection);
-      setIsConfirming(false);
+      setLockError(null);
       setAnnouncement(
         `${DISPLAY_SLOT_BY_DRAFT_SLOT[slot]} selected. Review it before locking permanently.`,
       );
     } catch {
       setSelectedSelection(null);
-      setIsConfirming(false);
+      setLockError('That component is unavailable. Choose another open component.');
       setAnnouncement('That component is unavailable. Choose another open component.');
     }
   }
 
-  function handleLockRequest() {
-    if (!selectedSelection || run.status !== 'drafting') {
+  function handleLock() {
+    if (!selectedSelection || run.status !== 'drafting' || lockInProgressRef.current) {
       return;
     }
 
-    if (!isConfirming) {
-      setIsConfirming(true);
-      setAnnouncement(
-        `${selectedSlotLabel} is ready to lock. Activate the button again to confirm; locked choices cannot change.`,
-      );
+    const lockKey = `${run.round}:${selectedSelection.offerId}:${selectedSelection.slot}:${selectedSelection.componentId}`;
+    if (committedLockKeyRef.current === lockKey) {
       return;
     }
+
+    committedLockKeyRef.current = lockKey;
+    lockInProgressRef.current = true;
+    setIsLocking(true);
+    const lockedSlotLabel = DISPLAY_SLOT_BY_DRAFT_SLOT[selectedSelection.slot];
 
     try {
       const nextRun = lockSelection(snapshot, run, selectedSelection, randomRef.current);
       setRun(nextRun);
       setSelectedSelection(null);
       setExpandedSlot(null);
-      setIsConfirming(false);
+      setExpandedBuildSlot(null);
+      setLockError(null);
+      if (nextRun.status === 'drafting') {
+        shouldFocusOfferHeadingRef.current = true;
+      }
       setAnnouncement(
         nextRun.status === 'complete'
-          ? 'Draft complete. Your composite champion is ready to reveal.'
-          : `${selectedSlotLabel} locked permanently. Choose another open component.`,
+          ? 'Draft complete. Your composite champion is ready to inspect.'
+          : `${lockedSlotLabel} locked permanently. New offer: ${nextRun.offer.champion.name}. Round ${currentRound(nextRun)} of six. Choose another open component.`,
       );
     } catch {
-      setIsConfirming(false);
-      setAnnouncement('That lock could not be completed. Choose another open component.');
+      committedLockKeyRef.current = null;
+      setLockError('That lock could not be completed. Your selection is still available.');
+      setAnnouncement('That lock could not be completed. Your selection is still available.');
+    } finally {
+      lockInProgressRef.current = false;
+      setIsLocking(false);
     }
-  }
-
-  function handleKeepDeciding() {
-    setIsConfirming(false);
-    setAnnouncement('Keep deciding. Your selected component is not locked yet.');
   }
 
   function handleToggleDetails(slot: DraftSlot) {
     setExpandedSlot((currentSlot) => (currentSlot === slot ? null : slot));
+  }
+
+  function handleToggleBuildDetails(slot: DraftSlot) {
+    setExpandedBuildSlot((currentSlot) => (currentSlot === slot ? null : slot));
   }
 
   return (
@@ -153,7 +181,9 @@ export function SoloDraftPage({
       <header className="draft-heading">
         <div>
           <p className="draft-heading__meta">Solo draft · untimed</p>
-          <h1>Choose a slot</h1>
+          <h1 id="draft-title" ref={offerHeadingRef} tabIndex={-1}>
+            Choose one part to keep.
+          </h1>
         </div>
         <div aria-label={`Round ${activeRound} of six`} className="round-counter">
           <span className="round-counter__label">Round</span>
@@ -162,48 +192,59 @@ export function SoloDraftPage({
         </div>
       </header>
 
+      <p aria-live="polite" className="visually-hidden" role="status">
+        {announcement}
+      </p>
+
       <div className="draft-progress">
         <RoundRail activeRound={activeRound} completedThrough={run.round} />
       </div>
 
-      <div className="draft-instruction" role="note">
-        <span className="draft-instruction__label">Your decision</span>
-        <span>
-          Choose one compatible component. Locks are permanent; there are no skips or rerolls.
-        </span>
-      </div>
-
       <section aria-label="Draft board" className="draft-board">
-        <aside aria-label="Current offer" className="panel console-panel offer-panel">
-          <div className="panel__topline">
-            <span className="panel__kicker">Offer</span>
-            <span className="panel__status">Live snapshot</span>
+        <aside aria-labelledby="offer-title" className="panel offer-panel">
+          <div className="offer-panel__topline">
+            <span className="panel__kicker">Champion offer</span>
+            <span className="panel__status">Patch {snapshot.dataDragonVersion}</span>
           </div>
-          <img
-            alt=""
-            className="offer-panel__icon"
-            height="96"
-            src={run.offer.champion.assetRefs.icon}
-            width="96"
-          />
-          <p className="screen-label">{run.offer.variant.label ?? run.offer.champion.title}</p>
-          <h2>{run.offer.champion.name}</h2>
-          <p>{run.offer.champion.title}</p>
-          <div className="console-panel__rule" />
-          <p className="console-panel__footnote">
-            One champion identity per round. Every selectable component has a legal path to the
-            final slot.
-          </p>
+          <div className="offer-panel__content">
+            <img
+              alt={`${run.offer.champion.name} icon`}
+              className="offer-panel__icon"
+              height="96"
+              src={run.offer.champion.assetRefs.icon}
+              width="96"
+            />
+            <div className="offer-panel__identity">
+              {run.offer.variant.label && (
+                <p className="offer-panel__variant">Variant · {run.offer.variant.label}</p>
+              )}
+              <h2 id="offer-title">{run.offer.champion.name}</h2>
+              <p className="offer-panel__title">{run.offer.champion.title}</p>
+            </div>
+            <div aria-hidden="true" className="offer-panel__round">
+              <span>Round</span>
+              <strong>{String(activeRound).padStart(2, '0')}</strong>
+              <span>/ 06</span>
+            </div>
+          </div>
         </aside>
+
+        <BuildReference
+          expandedSlot={expandedBuildSlot}
+          run={run}
+          selectedSlot={selectedSlot}
+          snapshot={snapshot}
+          onToggleDetails={handleToggleBuildDetails}
+        />
 
         <section aria-labelledby="choice-title" className="panel choice-panel">
           <div className="choice-panel__heading">
             <div>
-              <p className="screen-label">The next lock</p>
-              <h2 id="choice-title">Choose one component</h2>
+              <p className="screen-label">Available parts</p>
+              <h2 id="choice-title">Your options</h2>
             </div>
-            <span className="choice-panel__state" aria-live="polite">
-              {openSlots.length === 1 ? '1 slot open' : `${openSlots.length} slots open`}
+            <span aria-live="polite" className="choice-panel__state">
+              {choiceState}
             </span>
           </div>
 
@@ -231,135 +272,207 @@ export function SoloDraftPage({
             })}
           </div>
 
-          {expandedComponent && expandedSlot && (
-            <section
-              aria-label="Expanded component details"
-              className="component-details-panel"
-              id="component-details-panel"
-              role="region"
-            >
-              <div className="component-details-panel__heading">
-                <div>
-                  <p className="screen-label">Full details</p>
-                  <h3>{expandedComponent.name}</h3>
-                </div>
-                <span>{DISPLAY_SLOT_BY_DRAFT_SLOT[expandedSlot]} component</span>
-              </div>
-              <ComponentDetailsPanel component={expandedComponent} />
-            </section>
-          )}
-
-          <div className="lock-bar">
+          <div className={`lock-bar ${selectedSelection ? 'lock-bar--active' : ''}`.trim()}>
             <div className="lock-bar__copy">
               <p aria-live="polite" className="lock-bar__status">
-                {announcement}
+                {selectedDetails && selectedSlotLabel ? (
+                  <>
+                    <strong>
+                      {selectedSlotLabel}: {selectedDetails.component.name}
+                    </strong>{' '}
+                    from {formatSourceName(selectedDetails)}. Locking is permanent.
+                  </>
+                ) : openSlots.length === 1 ? (
+                  'Only one slot remains. Choose the final component, then lock it permanently.'
+                ) : (
+                  'Choose a component to enable the permanent lock.'
+                )}
               </p>
-              {isConfirming && selectedSlotLabel && (
-                <p className="lock-bar__warning" role="alert">
-                  Lock {selectedSlotLabel} permanently? This choice cannot be changed.
+              {lockError && (
+                <p className="lock-bar__error" role="alert">
+                  {lockError}
                 </p>
               )}
             </div>
             <div className="lock-bar__actions">
-              {isConfirming && (
-                <button
-                  className="button button--secondary"
-                  onClick={handleKeepDeciding}
-                  type="button"
-                >
-                  Keep deciding
-                </button>
-              )}
               <button
                 aria-label={
-                  selectedSlotLabel
-                    ? `${isConfirming ? 'Confirm lock' : 'Lock'} ${selectedSlotLabel}`
-                    : 'Select a component'
+                  selectedSlotLabel ? `Lock ${selectedSlotLabel} permanently` : 'Choose a component'
                 }
                 className="button button--primary"
-                disabled={!selectedSelection}
-                onClick={handleLockRequest}
+                disabled={!selectedSelection || isLocking}
+                onClick={handleLock}
                 type="button"
               >
-                {selectedSlotLabel
-                  ? `${isConfirming ? 'Confirm lock' : 'Lock'} ${selectedSlotLabel}`
-                  : 'Select a component'}{' '}
+                {selectedSlotLabel ? `Lock ${selectedSlotLabel} permanently` : 'Choose a component'}{' '}
                 <span aria-hidden="true">↗</span>
               </button>
             </div>
           </div>
         </section>
-
-        <aside aria-labelledby="build-title" className="panel build-panel">
-          <div className="panel__topline">
-            <div>
-              <p className="panel__kicker">Build</p>
-              <h2 id="build-title">Slots</h2>
-            </div>
-            <span className="build-panel__count">
-              <strong>{String(run.round).padStart(2, '0')}</strong> / 06
-            </span>
-          </div>
-          <ol className="build-status-list">
-            {DRAFT_SLOT_ORDER.map((slot) => {
-              const displaySlot = DISPLAY_SLOT_BY_DRAFT_SLOT[slot];
-              const metadata = SLOT_METADATA[displaySlot];
-              const lockedSelection = run.lockedBuild[slot];
-              const lockedComponent = lockedSelection
-                ? findSelectionDetails(snapshot, lockedSelection)?.component
-                : undefined;
-              const isSelected = selectedSlot === slot;
-              const isSelectable = run.offer.selectableSlots.includes(slot);
-              const stateLabel = lockedSelection
-                ? 'Locked'
-                : isSelected
-                  ? 'Selected'
-                  : isSelectable
-                    ? 'Selectable'
-                    : 'Unavailable';
-
-              return (
-                <li
-                  aria-label={`${metadata.label} slot, ${stateLabel.toLowerCase()}${lockedComponent ? ` with ${lockedComponent.name}` : ''}`}
-                  className={`build-status ${lockedSelection ? 'build-status--locked' : ''} ${isSelected ? 'build-status--selected' : ''}`.trim()}
-                  key={slot}
-                >
-                  <span className="build-status__index">{metadata.index}</span>
-                  {lockedComponent ? (
-                    <img
-                      alt=""
-                      className="build-status__icon"
-                      height="24"
-                      src={lockedComponent.iconRef}
-                      width="24"
-                    />
-                  ) : (
-                    <span aria-hidden="true" className="build-status__placeholder">
-                      ?
-                    </span>
-                  )}
-                  <span className="build-status__label">
-                    {lockedComponent?.name ?? metadata.label}
-                  </span>
-                  <span className="build-status__state">{stateLabel}</span>
-                </li>
-              );
-            })}
-          </ol>
-          <div aria-label="Build state legend" className="build-panel__legend">
-            <span>
-              <i className="legend-dot legend-dot--open" /> Open
-            </span>
-            <span>
-              <i className="legend-dot legend-dot--selected" /> Selected
-            </span>
-            <span>
-              <i className="legend-dot legend-dot--locked" /> Locked
-            </span>
-          </div>
-        </aside>
       </section>
     </div>
+  );
+}
+
+type BuildReferenceProps = {
+  readonly run: Extract<RunState, { status: 'drafting' }>;
+  readonly snapshot: ChampionSnapshot;
+  readonly selectedSlot: DraftSlot | null;
+  readonly expandedSlot: DraftSlot | null;
+  readonly onToggleDetails: (slot: DraftSlot) => void;
+};
+
+function BuildReference({
+  run,
+  snapshot,
+  selectedSlot,
+  expandedSlot,
+  onToggleDetails,
+}: BuildReferenceProps) {
+  const [isExpanded, setIsExpanded] = useState(
+    () => window.matchMedia?.('(max-width: 960px)').matches !== true,
+  );
+
+  return (
+    <aside
+      aria-labelledby="build-title"
+      className="panel build-panel"
+      data-build-expanded={isExpanded}
+    >
+      <div className="build-panel__heading">
+        <div>
+          <p className="panel__kicker">Build reference</p>
+          <h2 id="build-title">Your build</h2>
+        </div>
+        <span className="build-panel__count">
+          <strong>{String(run.round).padStart(2, '0')}</strong> / 06
+        </span>
+      </div>
+      <button
+        aria-expanded={isExpanded}
+        className="build-panel__toggle"
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+        type="button"
+      >
+        {isExpanded ? 'Compact build reference' : 'Expand full build reference'}
+      </button>
+      <ol className="build-status-list">
+        {DRAFT_SLOT_ORDER.map((slot) => {
+          const selection = run.lockedBuild[slot];
+          const details = selection ? findSelectionDetails(snapshot, selection) : null;
+
+          return (
+            <BuildSlotReference
+              details={details}
+              expanded={expandedSlot === slot}
+              isSelected={selectedSlot === slot}
+              isLocked={Boolean(selection)}
+              key={slot}
+              onToggleDetails={() => onToggleDetails(slot)}
+              slot={slot}
+            />
+          );
+        })}
+      </ol>
+      <div aria-label="Build state legend" className="build-panel__legend">
+        <span>
+          <i className="legend-dot legend-dot--open" /> Open
+        </span>
+        <span>
+          <i className="legend-dot legend-dot--selected" /> Selected
+        </span>
+        <span>
+          <i className="legend-dot legend-dot--locked" /> Locked
+        </span>
+      </div>
+    </aside>
+  );
+}
+
+type BuildSlotReferenceProps = {
+  readonly slot: DraftSlot;
+  readonly details: SelectionDetails | null;
+  readonly isLocked: boolean;
+  readonly isSelected: boolean;
+  readonly expanded: boolean;
+  readonly onToggleDetails: () => void;
+};
+
+function BuildSlotReference({
+  slot,
+  details,
+  isLocked,
+  isSelected,
+  expanded,
+  onToggleDetails,
+}: BuildSlotReferenceProps) {
+  const detailsId = `build-details-${useId().replaceAll(':', '')}`;
+  const detailsTriggerRef = useRef<HTMLButtonElement>(null);
+  const displaySlot = DISPLAY_SLOT_BY_DRAFT_SLOT[slot];
+  const metadata = SLOT_METADATA[displaySlot];
+  const stateLabel = isLocked ? 'Locked' : isSelected ? 'Selected' : 'Open';
+  const accessibleLabel = details
+    ? `${metadata.label} slot, locked, ${details.component.name}, from ${formatSourceName(details)}`
+    : `${metadata.label} slot, ${stateLabel.toLowerCase()}`;
+
+  return (
+    <li
+      aria-label={accessibleLabel}
+      className={`build-status ${isLocked ? 'build-status--locked' : ''} ${isSelected ? 'build-status--selected' : ''}`.trim()}
+    >
+      <div className="build-status__summary">
+        <div className="build-status__primary">
+          <span className="build-status__index">{metadata.index}</span>
+          {details ? (
+            <img
+              alt=""
+              className="build-status__icon"
+              height="32"
+              src={details.component.iconRef}
+              width="32"
+            />
+          ) : (
+            <span aria-hidden="true" className="build-status__placeholder">
+              ?
+            </span>
+          )}
+          <div className="build-status__content">
+            <span className="build-status__slot">{metadata.label}</span>
+            <strong className="build-status__component">
+              {details?.component.name ?? (isSelected ? 'Selected' : 'Open slot')}
+            </strong>
+            <span className="build-status__source">
+              {details ? `From ${formatSourceName(details)}` : 'Awaiting a lock'}
+            </span>
+          </div>
+        </div>
+        <span className="build-status__state">{stateLabel}</span>
+      </div>
+      {details && (
+        <>
+          <button
+            aria-controls={detailsId}
+            aria-expanded={expanded}
+            aria-label={`${expanded ? 'Hide details' : 'Inspect details'} for ${details.component.name}`}
+            className="build-status__details-toggle"
+            onClick={onToggleDetails}
+            ref={detailsTriggerRef}
+            type="button"
+          >
+            {expanded ? 'Hide details' : 'Inspect details'}
+          </button>
+          <ComponentDetailsPopover
+            component={details.component}
+            detailsId={detailsId}
+            detailsOpen={expanded}
+            onClose={onToggleDetails}
+            slotLabel={metadata.label}
+            triggerRef={detailsTriggerRef}
+          />
+        </>
+      )}
+    </li>
   );
 }
 
@@ -370,8 +483,14 @@ type CompletedDraftProps = {
 };
 
 function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
+  const completionHeadingRef = useRef<HTMLHeadingElement>(null);
+  const [expandedSlot, setExpandedSlot] = useState<DraftSlot | null>(null);
   const bodySelection = run.completion.build.body;
   const bodyDetails = findSelectionDetails(snapshot, bodySelection);
+
+  useEffect(() => {
+    completionHeadingRef.current?.focus();
+  }, []);
 
   if (!bodyDetails) {
     return null;
@@ -422,45 +541,17 @@ function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
         </div>
         <div className="completion-hero__copy">
           <p className="screen-label">Final reveal</p>
-          <h2 id="completion-title">Your composite champion</h2>
+          <h2 id="completion-title" ref={completionHeadingRef} tabIndex={-1}>
+            Your composite champion
+          </h2>
           <p>
             <strong>{bodyDetails.component.name}</strong> supplies the Body. The other five slots
             are drawn from the champions you locked along the way.
           </p>
-          <div className="result-hero__details">
-            <span>
-              <strong>06</strong> slots locked
-            </span>
-            <span>
-              <strong>—</strong> No score
-            </span>
+          <div className="completion-hero__meta">
+            <span>Six slots locked</span>
+            <span>Patch {run.completion.snapshotVersion}</span>
           </div>
-        </div>
-      </section>
-
-      <section aria-labelledby="completed-slots-title" className="completion-pieces">
-        <div className="section-heading section-heading--compact">
-          <div>
-            <p className="screen-label">The finished build</p>
-            <h2 id="completed-slots-title">Six parts</h2>
-          </div>
-          <p>Every choice is locked. There is no automated power score.</p>
-        </div>
-        <div className="completion-grid">
-          {DRAFT_SLOT_ORDER.map((slot) => {
-            const selection = run.completion.build[slot];
-            const details = findSelectionDetails(snapshot, selection);
-            if (!details) {
-              return null;
-            }
-
-            return (
-              <div className="completion-piece" key={slot}>
-                <ComponentCard component={details.component} slot={slot} state="locked" />
-                <p className="completion-piece__source">From {details.champion.name}</p>
-              </div>
-            );
-          })}
         </div>
       </section>
 
@@ -476,6 +567,40 @@ function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
           <AppLink className="button button--secondary" href="/">
             Back to home
           </AppLink>
+        </div>
+      </section>
+
+      <section aria-labelledby="completed-slots-title" className="completion-pieces">
+        <div className="section-heading section-heading--compact">
+          <div>
+            <p className="screen-label">The locked build</p>
+            <h2 id="completed-slots-title">Inspect each choice</h2>
+          </div>
+          <p>Open any part to review its details and source champion.</p>
+        </div>
+        <div className="completion-grid">
+          {DRAFT_SLOT_ORDER.map((slot) => {
+            const selection = run.completion.build[slot];
+            const details = findSelectionDetails(snapshot, selection);
+            if (!details) {
+              return null;
+            }
+
+            return (
+              <div className="completion-piece" key={slot}>
+                <ComponentCard
+                  component={details.component}
+                  detailsOpen={expandedSlot === slot}
+                  onToggleDetails={() =>
+                    setExpandedSlot((currentSlot) => (currentSlot === slot ? null : slot))
+                  }
+                  slot={slot}
+                  state="locked"
+                />
+                <p className="completion-piece__source">From {formatSourceName(details)}</p>
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>
@@ -501,4 +626,10 @@ function findSelectionDetails(
   }
 
   return { champion, variant, component };
+}
+
+function formatSourceName(details: SelectionDetails): string {
+  return details.variant.label
+    ? `${details.champion.name} · ${details.variant.label}`
+    : details.champion.name;
 }

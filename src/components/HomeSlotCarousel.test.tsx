@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { HomeSlotCarousel } from './HomeSlotCarousel';
@@ -33,6 +33,14 @@ class DeferredImage {
   }
 }
 
+class FailingImage {
+  onerror: (() => void) | null = null;
+
+  set src(_value: string) {
+    queueMicrotask(() => this.onerror?.());
+  }
+}
+
 async function flushPromises() {
   await Promise.resolve();
   await Promise.resolve();
@@ -58,6 +66,10 @@ describe('HomeSlotCarousel', () => {
     expect(container.querySelectorAll('.home-build-card__slot')).toHaveLength(6);
     expect(container.querySelectorAll('.home-build-card__slot-icon')).toHaveLength(6);
     expect(initialBodyIcon).toBeTruthy();
+    expect(bodySlot).toHaveAttribute('data-source-champion');
+    expect(bodySlot).toHaveAttribute('data-component-name', 'Body');
+    expect(container.querySelector('[aria-live]')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Pause preview rotation' })).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(3_200);
@@ -90,6 +102,23 @@ describe('HomeSlotCarousel', () => {
     act(() => vi.advanceTimersByTime(3_600));
 
     expect(bodySlot?.getAttribute('data-icon-id')).toBe(initialBodyIcon);
+  });
+
+  it('pauses the labelled preview rotation on request', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('Image', ImmediateImage);
+    const { container } = render(<HomeSlotCarousel />);
+    await act(flushPromises);
+    const bodySlot = container.querySelector('[data-carousel-slot="Body"]');
+    const initialBodyIcon = bodySlot?.getAttribute('data-icon-id');
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Pause preview rotation' }).click();
+    });
+    act(() => vi.advanceTimersByTime(6_400));
+
+    expect(bodySlot?.getAttribute('data-icon-id')).toBe(initialBodyIcon);
+    expect(screen.getByRole('button', { name: 'Play preview rotation' })).toBeInTheDocument();
   });
 
   it('keeps the linked body splash and current icons until the next frame is loaded', async () => {
@@ -146,5 +175,20 @@ describe('HomeSlotCarousel', () => {
       'data-preview-id',
       nextBodyIcon,
     );
+  });
+
+  it('keeps the premise visible when every preview asset fails', async () => {
+    vi.stubGlobal('Image', FailingImage);
+    const { container } = render(<HomeSlotCarousel />);
+
+    await act(flushPromises);
+
+    expect(container.querySelector('.home-build-card__art')).toHaveAttribute(
+      'data-frame-state',
+      'error',
+    );
+    expect(screen.getByText('Artwork unavailable')).toBeInTheDocument();
+    expect(screen.getAllByText('Body').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('.home-build-card__slot-icon--empty')).toHaveLength(6);
   });
 });
