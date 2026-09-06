@@ -19,7 +19,7 @@ describe('BuildChamp foundation routes', () => {
     render(<App />);
 
     expect(
-      screen.getByRole('heading', { level: 1, name: /choose six slots/i }),
+      screen.getByRole('heading', { level: 1, name: /build your own champion/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Rules' })).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
@@ -29,8 +29,9 @@ describe('BuildChamp foundation routes', () => {
     await user.click(screen.getByRole('link', { name: /start solo draft/i }));
 
     expect(window.location.pathname).toBe('/solo');
-    expect(screen.getByRole('heading', { level: 1, name: /choose a slot/i })).toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { name: /choose a slot/i })).toHaveLength(1);
+    expect(
+      screen.getByRole('heading', { level: 1, name: /choose one part to keep/i }),
+    ).toBeInTheDocument();
   });
 
   it('supports the keyboard lock interaction on the solo preview', async () => {
@@ -43,7 +44,7 @@ describe('BuildChamp foundation routes', () => {
     await user.keyboard('{Enter}');
 
     expect(bodySlot).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Lock Body' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Lock Body permanently' })).toBeEnabled();
   });
 
   it('renders invalid results and unknown routes as recoverable states', () => {
@@ -77,7 +78,7 @@ describe('BuildChamp foundation routes', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/could not load the page/i);
     await user.click(screen.getByRole('button', { name: /go home/i }));
     expect(
-      screen.getByRole('heading', { level: 1, name: /choose six slots/i }),
+      screen.getByRole('heading', { level: 1, name: /build your own champion/i }),
     ).toBeInTheDocument();
     consoleError.mockRestore();
   });

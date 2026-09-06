@@ -10,10 +10,12 @@ export function HomePage() {
             <span aria-hidden="true" /> Solo draft
           </p>
           <h1 id="home-title">
-            Choose six
-            <span>slots</span>
+            Build your
+            <span>own champion.</span>
           </h1>
-          <p className="home-hero__lede">Choose one slot from each offer. Locks are permanent.</p>
+          <p className="home-hero__lede">
+            Six random champions. Take one part from each. Every pick is permanent.
+          </p>
           <div className="home-hero__actions">
             <AppLink className="button button--primary" href="/solo">
               Start solo draft <span aria-hidden="true">↗</span>
@@ -22,20 +24,7 @@ export function HomePage() {
               Rules <span aria-hidden="true">↓</span>
             </a>
           </div>
-          <dl className="home-hero__stats">
-            <div>
-              <dt>Rounds</dt>
-              <dd>06</dd>
-            </div>
-            <div>
-              <dt>Locks</dt>
-              <dd>06</dd>
-            </div>
-            <div>
-              <dt>Timer</dt>
-              <dd>None</dd>
-            </div>
-          </dl>
+          <p className="home-hero__assurance">Untimed · no account required</p>
         </div>
 
         <div className="home-stage">
@@ -43,11 +32,11 @@ export function HomePage() {
           <article aria-labelledby="home-board-title" className="home-build-card">
             <div className="home-build-card__topline">
               <span>Solo draft</span>
-              <span>Preview</span>
+              <span>Illustrative example</span>
             </div>
             <div className="home-build-card__title">
-              <span>Six slots</span>
-              <h2 id="home-board-title">Build</h2>
+              <span>Source parts shown</span>
+              <h2 id="home-board-title">Example build</h2>
             </div>
             <HomeSlotCarousel />
           </article>

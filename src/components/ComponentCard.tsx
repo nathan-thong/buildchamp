@@ -1,4 +1,6 @@
-import type { Component } from '../data/snapshot-schema';
+import { useEffect, useId, useRef } from 'react';
+
+import type { BodyStats, Component } from '../data/snapshot-schema';
 import type { DraftSlot } from '../domain/draft-engine';
 import { SLOT_METADATA, type Slot } from '../domain/slots';
 
@@ -39,10 +41,14 @@ export function ComponentCard({
   onToggleDetails,
   lockedLabel,
 }: ComponentCardProps) {
+  const detailsId = `component-details-${useId().replaceAll(':', '')}`;
+  const detailsTriggerRef = useRef<HTMLButtonElement>(null);
   const displaySlot = DISPLAY_SLOT_BY_DRAFT_SLOT[slot];
   const metadata = SLOT_METADATA[displaySlot];
   const stateLabel = lockedLabel ?? STATE_LABELS[state];
   const isInteractive = state === 'selectable' || state === 'selected';
+  const availabilityNote =
+    component.availability.status === 'conditional' ? component.availability.summary : null;
   const cardClassName = [
     'component-card',
     `component-card--${slot}`,
@@ -68,9 +74,9 @@ export function ComponentCard({
         />
         <div>
           <strong>{component.name}</strong>
-          <span>
-            {component.availability.status === 'conditional' ? 'Conditional' : 'Portable'}
-          </span>
+          {availabilityNote && (
+            <span className="component-card__availability">Conditional: {availabilityNote}</span>
+          )}
         </div>
       </div>
       <p className="component-card__summary">{component.shortDescription}</p>
@@ -102,17 +108,131 @@ export function ComponentCard({
         </div>
       )}
       {onToggleDetails && (
-        <button
-          aria-controls={detailsOpen ? 'component-details-panel' : undefined}
-          aria-expanded={detailsOpen}
-          className="component-card__details-toggle"
-          onClick={onToggleDetails}
-          type="button"
-        >
-          {detailsOpen ? 'Hide details' : 'Full details'}
-        </button>
+        <>
+          <button
+            aria-controls={detailsId}
+            aria-expanded={detailsOpen}
+            aria-label={`${detailsOpen ? 'Hide details' : 'Full details'} for ${component.name}`}
+            className="component-card__details-toggle"
+            onClick={onToggleDetails}
+            ref={detailsTriggerRef}
+            type="button"
+          >
+            {detailsOpen ? 'Hide details' : 'Full details'}
+          </button>
+          <ComponentDetailsPopover
+            component={component}
+            detailsId={detailsId}
+            detailsOpen={detailsOpen}
+            onClose={onToggleDetails}
+            slotLabel={metadata.label}
+            triggerRef={detailsTriggerRef}
+          />
+        </>
       )}
     </article>
+  );
+}
+
+type ComponentDetailsPopoverProps = {
+  readonly component: Component;
+  readonly detailsId: string;
+  readonly detailsOpen: boolean;
+  readonly onClose: () => void;
+  readonly slotLabel: string;
+  readonly triggerRef: { current: HTMLButtonElement | null };
+};
+
+export function ComponentDetailsPopover({
+  component,
+  detailsId,
+  detailsOpen,
+  onClose,
+  slotLabel,
+  triggerRef,
+}: ComponentDetailsPopoverProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const wasOpenRef = useRef(false);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
+
+    if (detailsOpen) {
+      wasOpenRef.current = true;
+      if (!dialog.open) {
+        if (typeof dialog.showModal === 'function') {
+          dialog.showModal();
+        } else {
+          dialog.setAttribute('open', '');
+        }
+      }
+      closeButtonRef.current?.focus();
+
+      return () => {
+        if (dialog.open && typeof dialog.close === 'function') {
+          dialog.close();
+        }
+      };
+    }
+
+    if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      if (dialog.open) {
+        if (typeof dialog.close === 'function') {
+          dialog.close();
+        } else {
+          dialog.removeAttribute('open');
+        }
+      }
+      triggerRef.current?.focus();
+    }
+  }, [detailsOpen, triggerRef]);
+
+  return (
+    <dialog
+      aria-label={`Details for ${component.name}`}
+      aria-modal="true"
+      className="component-details-popover"
+      hidden={!detailsOpen}
+      id={detailsId}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+      ref={dialogRef}
+      role="dialog"
+    >
+      <div className="component-details-popover__surface">
+        <div className="component-details-popover__header">
+          <div>
+            <p className="screen-label">Full details</p>
+            <h2>{component.name}</h2>
+          </div>
+          <div className="component-details-popover__header-actions">
+            <span>{slotLabel} component</span>
+            <button
+              aria-label={`Close details for ${component.name}`}
+              className="button button--secondary component-details-popover__close"
+              onClick={onClose}
+              ref={closeButtonRef}
+              type="button"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+        <ComponentDetailsPanel component={component} />
+      </div>
+    </dialog>
   );
 }
 
@@ -157,9 +277,7 @@ function ComponentMetrics({ component, slot }: { component: Component; slot: Dra
       {metrics.map((metric) => (
         <div key={metric.label}>
           <dt>{metric.label}</dt>
-          <dd aria-label={metric.fullValue} title={metric.fullValue}>
-            {metric.value}
-          </dd>
+          <dd aria-label={metric.fullValue}>{metric.value}</dd>
         </div>
       ))}
     </dl>
@@ -183,7 +301,7 @@ export function ComponentDetailsPanel({ component }: { component: Component }) {
       {component.fullDescription.split(/\n{2,}/).map((paragraph, index) => (
         <p key={`${component.id}-description-${index}`}>{paragraph}</p>
       ))}
-      {component.values.length > 0 && (
+      {component.values.length > 0 && !component.bodyStats && (
         <dl className="component-details-panel__values">
           {component.values.map((value) => (
             <div key={`${component.id}-${value.label}`}>
@@ -193,6 +311,7 @@ export function ComponentDetailsPanel({ component }: { component: Component }) {
           ))}
         </dl>
       )}
+      {component.bodyStats && <BodyStatsDetails bodyStats={component.bodyStats} />}
       {cooldowns.length > 0 && <ValueGroup label="Cooldown" values={cooldowns} suffix="s" />}
       {ranges.length > 0 && <ValueGroup label="Range" values={ranges} />}
       {component.carriedMechanics.length > 0 && (
@@ -205,6 +324,70 @@ export function ComponentDetailsPanel({ component }: { component: Component }) {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+const BODY_STAT_KEYS: readonly (keyof BodyStats['base'])[] = [
+  'health',
+  'healthRegen',
+  'mana',
+  'manaRegen',
+  'armor',
+  'magicResist',
+  'attackDamage',
+  'attackSpeed',
+];
+
+const BODY_STAT_LABELS: Readonly<Record<keyof BodyStats['base'], string>> = {
+  health: 'Health',
+  healthRegen: 'Health regen',
+  mana: 'Mana',
+  manaRegen: 'Mana regen',
+  armor: 'Armor',
+  magicResist: 'Magic resist',
+  attackDamage: 'Attack damage',
+  attackSpeed: 'Attack speed',
+};
+
+function BodyStatsDetails({ bodyStats }: { bodyStats: NonNullable<Component['bodyStats']> }) {
+  return (
+    <div aria-label="Full body stats" className="component-details-panel__body-stats">
+      <h4>Body stats</h4>
+      <dl className="component-details-panel__values component-details-panel__values--body-overview">
+        <div>
+          <dt>Attack type</dt>
+          <dd>{capitalize(bodyStats.attackType)}</dd>
+        </div>
+        <div>
+          <dt>Attack range</dt>
+          <dd>{formatNumber(bodyStats.attackRange)}</dd>
+        </div>
+        <div>
+          <dt>Movement speed</dt>
+          <dd>{formatNumber(bodyStats.movementSpeed)}</dd>
+        </div>
+      </dl>
+      <div className="component-details-panel__stat-columns">
+        <StatColumn label="Base" values={bodyStats.base} />
+        <StatColumn label="Growth" values={bodyStats.growth} />
+      </div>
+    </div>
+  );
+}
+
+function StatColumn({ label, values }: { label: string; values: BodyStats['base'] }) {
+  return (
+    <div className="component-details-panel__stat-column">
+      <h5>{label}</h5>
+      <dl className="component-details-panel__values">
+        {BODY_STAT_KEYS.map((key) => (
+          <div key={key}>
+            <dt>{BODY_STAT_LABELS[key]}</dt>
+            <dd>{formatNumber(values[key])}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

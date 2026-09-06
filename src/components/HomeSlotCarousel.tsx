@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { BUNDLED_CHAMPION_SNAPSHOT } from '../data/runtime-snapshot';
 import type { ChampionSnapshot, Slot as SnapshotSlot } from '../data/snapshot-schema';
 import { SLOT_METADATA, SLOT_ORDER, type Slot } from '../domain/slots';
+import { SlotGlyph } from './SlotGlyph';
 
 const ROTATION_INTERVAL_MS = 3_200;
 
@@ -10,6 +11,8 @@ type PreviewIcon = {
   readonly id: string;
   readonly src: string;
   readonly splashSrc?: string;
+  readonly sourceName: string;
+  readonly componentName: string;
 };
 
 type PreviewFrame = readonly (PreviewIcon | null)[];
@@ -35,7 +38,10 @@ export function HomeSlotCarousel({ snapshot = BUNDLED_CHAMPION_SNAPSHOT }: HomeS
   const frameRef = useRef(frame);
   const loadingNextFrameRef = useRef(false);
   const [loadedSources, setLoadedSources] = useState<ReadonlySet<string>>(() => new Set());
+  const [failedSources, setFailedSources] = useState<ReadonlySet<string>>(() => new Set());
   const [isFrameReady, setIsFrameReady] = useState(false);
+  const [isFrameFailed, setIsFrameFailed] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [isOnscreen, setIsOnscreen] = useState(true);
   const [isDocumentVisible, setIsDocumentVisible] = useState(
     () => document.visibilityState !== 'hidden',
@@ -89,11 +95,18 @@ export function HomeSlotCarousel({ snapshot = BUNDLED_CHAMPION_SNAPSHOT }: HomeS
     };
 
     void findLoadedFrame(frameRef.current, iconPools, markLoaded).then((loadedFrame) => {
-      if (!cancelled && loadedFrame) {
+      if (cancelled) {
+        return;
+      }
+
+      if (loadedFrame) {
         frameRef.current = loadedFrame;
         setLoadedSources(new Set(frameSources(loadedFrame)));
         setFrame(loadedFrame);
         setIsFrameReady(true);
+        setIsFrameFailed(false);
+      } else {
+        setIsFrameFailed(true);
       }
     });
 
@@ -103,7 +116,14 @@ export function HomeSlotCarousel({ snapshot = BUNDLED_CHAMPION_SNAPSHOT }: HomeS
   }, [iconPools, isDocumentVisible, isOnscreen]);
 
   useEffect(() => {
-    if (!isFrameReady || !isOnscreen || !isDocumentVisible || prefersReducedMotion) {
+    if (
+      !isFrameReady ||
+      !isOnscreen ||
+      !isDocumentVisible ||
+      prefersReducedMotion ||
+      isPaused ||
+      isFrameFailed
+    ) {
       return;
     }
 
@@ -146,17 +166,42 @@ export function HomeSlotCarousel({ snapshot = BUNDLED_CHAMPION_SNAPSHOT }: HomeS
       loadingNextFrameRef.current = false;
       window.clearInterval(intervalId);
     };
-  }, [iconPools, isDocumentVisible, isFrameReady, isOnscreen, prefersReducedMotion]);
+  }, [
+    iconPools,
+    isDocumentVisible,
+    isFrameFailed,
+    isFrameReady,
+    isOnscreen,
+    isPaused,
+    prefersReducedMotion,
+  ]);
 
   const bodyIcon = frame[0] ?? null;
-  const bodySplashLoaded = Boolean(bodyIcon?.splashSrc && loadedSources.has(bodyIcon.splashSrc));
+  const bodySplashLoaded = Boolean(
+    bodyIcon?.splashSrc &&
+    loadedSources.has(bodyIcon.splashSrc) &&
+    !failedSources.has(bodyIcon.splashSrc),
+  );
+  const frameState = isFrameFailed ? 'error' : isFrameReady ? 'ready' : 'loading';
+
+  function handleImageError(source: string) {
+    setFailedSources((currentSources) => {
+      if (currentSources.has(source)) {
+        return currentSources;
+      }
+
+      return new Set(currentSources).add(source);
+    });
+  }
 
   return (
     <div ref={carouselRef} className="home-slot-carousel">
       <div
-        aria-hidden="true"
+        aria-label="Illustrative champion artwork preview"
         className="home-build-card__art"
+        data-frame-state={frameState}
         data-body-preview-id={bodySplashLoaded ? bodyIcon?.id : undefined}
+        role="img"
       >
         {bodySplashLoaded && bodyIcon?.splashSrc ? (
           <img
@@ -167,10 +212,16 @@ export function HomeSlotCarousel({ snapshot = BUNDLED_CHAMPION_SNAPSHOT }: HomeS
             decoding="async"
             height="1080"
             key={bodyIcon.id}
+            onError={() => handleImageError(bodyIcon.splashSrc!)}
             src={bodyIcon.splashSrc}
             width="1920"
           />
-        ) : null}
+        ) : (
+          <div className="home-build-card__art-fallback">
+            <span>{isFrameFailed ? 'Artwork unavailable' : 'Illustrative preview'}</span>
+            <strong>{bodyIcon?.sourceName ?? 'BuildChamp'}</strong>
+          </div>
+        )}
       </div>
       <div
         aria-label="Six build slots"
@@ -180,16 +231,23 @@ export function HomeSlotCarousel({ snapshot = BUNDLED_CHAMPION_SNAPSHOT }: HomeS
       >
         {SLOT_ORDER.map((slot, index) => {
           const icon = frame[index] ?? iconPools[slot][0] ?? null;
+          const hasLoadedIcon = Boolean(
+            icon && loadedSources.has(icon.src) && !failedSources.has(icon.src),
+          );
 
           return (
             <div
+              aria-label={`${slot} slot. ${icon?.componentName ?? 'Component preview'} from ${icon?.sourceName ?? 'BuildChamp'}`}
               className="home-build-card__slot"
               data-carousel-slot={slot}
+              data-component-name={icon?.componentName}
               data-icon-id={icon?.id}
+              data-source-champion={icon?.sourceName}
               key={slot}
+              role="group"
             >
-              <span>{SLOT_METADATA[slot].index}</span>
-              {icon && loadedSources.has(icon.src) ? (
+              <span className="home-build-card__slot-index">{SLOT_METADATA[slot].index}</span>
+              {hasLoadedIcon && icon ? (
                 <img
                   alt=""
                   aria-hidden="true"
@@ -197,6 +255,7 @@ export function HomeSlotCarousel({ snapshot = BUNDLED_CHAMPION_SNAPSHOT }: HomeS
                   decoding="async"
                   height="48"
                   key={icon.id}
+                  onError={() => handleImageError(icon.src)}
                   src={icon.src}
                   width="48"
                 />
@@ -204,12 +263,27 @@ export function HomeSlotCarousel({ snapshot = BUNDLED_CHAMPION_SNAPSHOT }: HomeS
                 <span
                   aria-hidden="true"
                   className="home-build-card__slot-icon home-build-card__slot-icon--empty"
-                />
+                >
+                  <SlotGlyph slot={slot} />
+                </span>
               )}
-              <strong>{SLOT_METADATA[slot].label}</strong>
+              <strong>{icon?.componentName ?? SLOT_METADATA[slot].label}</strong>
+              <span className="home-build-card__slot-source">{icon?.sourceName ?? 'Loading'}</span>
             </div>
           );
         })}
+      </div>
+      <div className="home-slot-carousel__footer">
+        <p>Source champions and components are shown for reference.</p>
+        <button
+          aria-label={isPaused ? 'Play preview rotation' : 'Pause preview rotation'}
+          aria-pressed={isPaused}
+          className="home-slot-carousel__pause"
+          onClick={() => setIsPaused((paused) => !paused)}
+          type="button"
+        >
+          {isPaused ? 'Play preview' : 'Pause preview'}
+        </button>
       </div>
     </div>
   );
@@ -250,6 +324,8 @@ function createIconPools(snapshot: ChampionSnapshot): IconPools {
       id: champion.id,
       src: champion.assetRefs.icon,
       splashSrc: champion.assetRefs.defaultSplash,
+      componentName: 'Body',
+      sourceName: champion.name,
     });
 
     for (const variant of champion.variants) {
@@ -266,6 +342,8 @@ function createIconPools(snapshot: ChampionSnapshot): IconPools {
         addUniqueIcon(pools[slot], {
           id: `${champion.id}-${variant.id}-${component.id}`,
           src: component.iconRef,
+          componentName: component.name,
+          sourceName: champion.name,
         });
       }
     }
