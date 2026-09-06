@@ -129,6 +129,14 @@ describe('solo gameplay', () => {
     }
 
     expect(screen.getByRole('heading', { name: 'Your composite champion' })).toBeInTheDocument();
+    const bodyLabel = screen.getByText('Body').parentElement;
+    expect(bodyLabel).toHaveClass('champion-art__body-label');
+    expect(bodyLabel).toHaveTextContent(/^Body/);
+    expect(bodyLabel?.querySelector('strong')?.textContent).toBeTruthy();
+    expect(screen.queryByText('Default form')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('group', { name: 'Composite ability icons' }).querySelectorAll('img'),
+    ).toHaveLength(5);
     expect(screen.getAllByRole('article')).toHaveLength(6);
     expect(screen.getByText(/six parts/i)).toBeInTheDocument();
     expect(screen.getByText(/no automated power score/i)).toBeInTheDocument();

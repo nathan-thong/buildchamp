@@ -1831,6 +1831,23 @@ button.slot-card[aria-pressed='true'] {
   text-transform: uppercase;
 }
 
+.champion-art__stamp-row {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.champion-art__body-label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+
 .champion-art__stamp strong {
   max-width: 16ch;
   color: var(--bc-color-gold-bright);
@@ -1838,6 +1855,27 @@ button.slot-card[aria-pressed='true'] {
   font-size: clamp(1.4rem, 3vw, 2.3rem);
   letter-spacing: 0.02em;
   line-height: 0.9;
+}
+
+.champion-art__abilities {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid var(--bc-color-line-gold-soft);
+  background: rgba(7, 13, 22, 0.5);
+}
+
+.champion-art__ability-icon {
+  display: block;
+  width: 2.15rem;
+  height: 2.15rem;
+  border: 1px solid var(--bc-color-line-strong);
+  background: var(--bc-color-surface-raised);
+  object-fit: cover;
 }
 
 .build-status__icon {

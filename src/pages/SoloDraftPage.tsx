@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { AppLink } from '../components/AppLink';
-import { ChampionArtwork } from '../components/ChampionArtwork';
+import { ChampionArtwork, type ChampionArtworkAbility } from '../components/ChampionArtwork';
 import { ComponentCard, ComponentDetailsPanel } from '../components/ComponentCard';
 import { RoundRail } from '../components/RoundRail';
 import { BUNDLED_CHAMPION_SNAPSHOT } from '../data/runtime-snapshot';
@@ -377,6 +377,19 @@ function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
     return null;
   }
 
+  const abilityIcons: ChampionArtworkAbility[] = DRAFT_SLOT_ORDER.slice(1).flatMap((slot) => {
+    const details = findSelectionDetails(snapshot, run.completion.build[slot]);
+    return details
+      ? [
+          {
+            slot: DISPLAY_SLOT_BY_DRAFT_SLOT[slot],
+            name: details.component.name,
+            iconRef: details.component.iconRef,
+          },
+        ]
+      : [];
+  });
+
   return (
     <div className="page-container draft-page completion-page">
       <header className="draft-heading">
@@ -401,7 +414,11 @@ function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
         className="completion-hero panel"
       >
         <div className="completion-hero__art">
-          <ChampionArtwork champion={bodyDetails.champion} variant={bodyDetails.variant} />
+          <ChampionArtwork
+            abilities={abilityIcons}
+            champion={bodyDetails.champion}
+            variant={bodyDetails.variant}
+          />
         </div>
         <div className="completion-hero__copy">
           <p className="screen-label">Final reveal</p>

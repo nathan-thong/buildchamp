@@ -75,8 +75,12 @@ test('solo completes the six-lock snapshot-backed journey and starts a fresh rem
   await expect(page.getByRole('heading', { name: 'Your composite champion' })).toBeVisible();
   await expect(page.locator('.completion-page .champion-art')).toBeVisible();
   await expect(
-    page.locator('.completion-page .champion-art img, .completion-page .champion-art__fallback'),
+    page.locator('.completion-page .champion-art__image, .completion-page .champion-art__fallback'),
   ).toHaveCount(1);
+  await expect(page.locator('.champion-art__body-label')).toHaveText(/Body/);
+  await expect(page.getByText('Default form')).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Composite ability icons' })).toBeVisible();
+  await expect(page.locator('[data-composite-ability-slot]')).toHaveCount(5);
   await expect(page.getByText(/six parts/i)).toBeVisible();
   await page.getByRole('button', { name: /play again/i }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Choose a slot' })).toBeVisible();
