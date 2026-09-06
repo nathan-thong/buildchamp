@@ -34,6 +34,7 @@ function makeCommunityDragonBin() {
         cooldownTime: [8, 8, 8, 8, 8, 8, 8],
         castRange: [25000, 25000, 25000, 25000, 25000, 25000, 25000],
         castRangeDisplayOverride: [1050, 1050, 1050, 1050, 1050, 1050, 1050],
+        mImgIconName: ['ASSETS/Characters/Jayce/HUD/Icons2D/JayceQ_Melee.dds'],
         mClientData: {
           mTooltipData: {
             mLists: {
@@ -54,6 +55,8 @@ describe('CommunityDragon alternate spell source', () => {
 
     expect(spells.JayceShockBlast).toEqual({
       id: 'JayceShockBlast',
+      iconRef:
+        'https://raw.communitydragon.org/15.17/game/assets/characters/jayce/hud/icons2d/jayceq_melee.png',
       cooldown: [8, 8, 8, 8, 8, 8],
       range: [1050, 1050, 1050, 1050, 1050, 1050],
       leveltip: {

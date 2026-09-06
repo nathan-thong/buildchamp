@@ -541,6 +541,26 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
         reviewedForDataDragonVersion: '16.17.1',
       },
       {
+        championId: 'fiddlesticks',
+        assetOverrides: {
+          defaultSplash:
+            'https://raw.communitydragon.org/16.17/plugins/rcp-be-lol-game-data/global/default/assets/characters/fiddlesticks/skins/base/images/fiddlesticks_splash_uncentered_0.jpg',
+          defaultLoading:
+            'https://raw.communitydragon.org/16.17/plugins/rcp-be-lol-game-data/global/default/assets/characters/fiddlesticks/skins/base/fiddlesticksloadscreen.jpg',
+        },
+        notes: [
+          'The Data Dragon Fiddlesticks_0.jpg asset still resolves to the legacy pre-VGU splash for this snapshot.',
+          'Use the version-pinned CommunityDragon base-skin splash and loading-screen assets for Fiddlesticks’ current reworked artwork; this is a presentation-only correction.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Fiddlesticks.json',
+          'https://raw.communitydragon.org/16.17/game/data/characters/fiddlesticks/fiddlesticks.bin.json',
+          'https://raw.communitydragon.org/16.17/plugins/rcp-be-lol-game-data/global/default/assets/characters/fiddlesticks/skins/base/images/fiddlesticks_splash_uncentered_0.jpg',
+          'https://raw.communitydragon.org/16.17/plugins/rcp-be-lol-game-data/global/default/assets/characters/fiddlesticks/skins/base/fiddlesticksloadscreen.jpg',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
         championId: 'gnar',
         variants: [
           {
@@ -596,6 +616,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                   'Mini Form: Leaps to a location and bounces off the head of any unit Gnar lands on, traveling farther.',
               },
               r: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/gnar/hud/icons2d/gnar_r_grey.png',
                 sourceSpellIds: ['GnarR'],
                 availability: {
                   status: 'unavailable',
@@ -669,6 +691,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                   'Mega Form: Leaps to a location and lands with earth-shattering force, damaging nearby enemies.',
               },
               r: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/gnar/hud/icons2d/gnarbig_r.png',
                 sourceSpellIds: ['GnarR'],
                 name: 'GNAR!',
                 shortDescription:
@@ -895,6 +919,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                 ],
               },
               q: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_q_slay.png',
                 sourceSpellIds: ['communitydragon:KaynQ'],
                 fallbackSourceSpellIds: ['KaynQ'],
                 sourceDataValueNames: [
@@ -917,6 +943,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                   'Rhaast dashes, then slashes, dealing physical damage and additional damage based on the target’s maximum Health.',
               },
               w: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_w_slay.png',
                 sourceSpellIds: ['communitydragon:KaynW'],
                 fallbackSourceSpellIds: ['KaynW'],
                 sourceDataValueNames: ['BaseDamage', 'KnockupDuration', 'BoxWidth'],
@@ -924,6 +952,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                 fullDescription: 'Rhaast damages targets in a line and knocks them up.',
               },
               e: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_e_slay.png',
                 sourceSpellIds: ['communitydragon:KaynE'],
                 fallbackSourceSpellIds: ['KaynE'],
                 sourceDataValueNames: [
@@ -941,6 +971,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                   'Rhaast can walk through terrain, gaining Move Speed and healing when he enters terrain.',
               },
               r: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_r1_slay.png',
                 sourceSpellIds: ['communitydragon:KaynR'],
                 fallbackSourceSpellIds: ['KaynR'],
                 sourceDataValueNames: [
@@ -962,6 +994,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                   'Rhaast hides inside an enemy and bursts out, dealing damage based on the target’s maximum Health and healing Rhaast.',
               },
               passive: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_passive_slay.png',
                 name: 'The Darkin Scythe — Rhaast',
                 shortDescription:
                   'Rhaast heals for a percentage of spell damage dealt to champions.',
@@ -991,6 +1025,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                 ],
               },
               q: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_q_ass.png',
                 sourceSpellIds: ['communitydragon:KaynQ'],
                 fallbackSourceSpellIds: ['KaynQ'],
                 sourceDataValueNames: [
@@ -1005,6 +1041,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                 fullDescription: 'Kayn dashes, then slashes, dealing physical damage.',
               },
               w: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_w_ass.png',
                 sourceSpellIds: ['communitydragon:KaynAssW'],
                 fallbackSourceSpellIds: ['KaynW'],
                 sourceDataValueNames: ['BaseDamage', 'KnockupDuration', 'SlowAmount'],
@@ -1014,6 +1052,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                   'The Shadow Assassin damages and slows targets in a long line while his shadow performs the cast.',
               },
               e: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_e_ass.png',
                 sourceSpellIds: ['communitydragon:KaynE'],
                 fallbackSourceSpellIds: ['KaynE'],
                 sourceDataValueNames: [
@@ -1033,6 +1073,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                   'The Shadow Assassin can walk through terrain, gaining increased Move Speed and reduced cooldown when entering terrain.',
               },
               r: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_r1_primary.png',
                 sourceSpellIds: ['communitydragon:KaynR'],
                 fallbackSourceSpellIds: ['KaynR'],
                 sourceDataValueNames: [
@@ -1049,6 +1091,8 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
                   'The Shadow Assassin hides inside an enemy and bursts out, dealing damage and emerging farther away.',
               },
               passive: {
+                iconRef:
+                  'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_passive_ass.png',
                 name: 'The Darkin Scythe — Shadow Assassin',
                 shortDescription:
                   'For the first few seconds in combat with enemy champions, the Shadow Assassin deals bonus damage.',
@@ -1105,6 +1149,625 @@ export const DEFAULT_COMPATIBILITY_MANIFEST: CompatibilityManifest =
           'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Viego.json',
           'https://raw.communitydragon.org/16.17/game/data/characters/viego/viego.bin.json',
           'https://www.leagueoflegends.com/en-us/champions/viego/',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'xayah',
+        variants: [
+          {
+            id: 'xayah-default',
+            label: 'Default kit',
+            componentOverrides: {
+              e: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Feather Recall requires Feathers supplied by Xayah’s original kit.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Xayah remains one default-kit variant because her Body, Q, W, R, and Passive remain meaningful as independent components.',
+          'Bladecaller (E) is unavailable because Feather Recall has no input when separated from Xayah’s original kit.',
+          'The component fails the portability test because its meaningful damage and root require omitted original-kit state; this is a targeted component restriction rather than a champion exclusion.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Xayah.json',
+          'https://www.leagueoflegends.com/en-us/champions/xayah/',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'yorick',
+        variants: [
+          {
+            id: 'yorick-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary:
+                    'Shepherd of Souls requires Yorick’s original grave and Mist Walker system.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Yorick remains one default-kit variant because Body, Q, W, E, and R retain meaningful standalone actions.',
+          'Shepherd of Souls (Passive) is unavailable because its grave and Mist Walker behaviour has no portable lifecycle when separated from Yorick’s original kit.',
+          'The component fails the portability test because its meaningful behaviour requires omitted original-kit state; this is a targeted Passive restriction rather than a champion exclusion.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Yorick.json',
+          'https://www.leagueoflegends.com/en-us/champions/yorick/',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'azir',
+        variants: [
+          {
+            id: 'azir-default',
+            label: 'Default kit',
+            componentOverrides: {
+              q: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary:
+                    'Conquering Sands requires Sand Soldiers supplied by Azir’s original kit.',
+                },
+              },
+              e: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary:
+                    'Shifting Sands requires a Sand Soldier supplied by Azir’s original kit.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Azir remains one default-kit variant because Body, W, and R retain meaningful standalone actions.',
+          'Q (Conquering Sands) and E (Shifting Sands) are unavailable because both require Sand Soldiers supplied by W or the original kit.',
+          'The targeted restrictions preserve Azir’s meaningful independent choices without excluding the champion.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Azir.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'aurelion-sol',
+        variants: [
+          {
+            id: 'aurelion-sol-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Cosmic Creator only upgrades Aurelion Sol’s other abilities.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Aurelion Sol remains one default-kit variant because Body and Q/W/E/R retain meaningful standalone actions.',
+          'Passive (Cosmic Creator) is unavailable because Stardust only permanently improves Aurelion Sol’s other abilities, which cannot be selected from the same champion.',
+          'This is a targeted Passive restriction rather than a champion exclusion.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/AurelionSol.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'heimerdinger',
+        variants: [
+          {
+            id: 'heimerdinger-default',
+            label: 'Default kit',
+            componentOverrides: {
+              r: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'UPGRADE!!! only modifies Heimerdinger’s Q, W, or E abilities.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Heimerdinger remains one default-kit variant because Body and Q/W/E retain meaningful standalone actions.',
+          'R (UPGRADE!!!) is unavailable because it only modifies one of Heimerdinger’s omitted basic abilities.',
+          'The component is restricted instead of carrying an implicit second spell slot.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Heimerdinger.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'illaoi',
+        variants: [
+          {
+            id: 'illaoi-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary:
+                    'Prophet of an Elder God requires Tentacle targets supplied by Illaoi’s original kit.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Illaoi remains one default-kit variant because Body and Q/W/E/R retain meaningful standalone actions.',
+          'Passive (Prophet of an Elder God) is unavailable because its spawned Tentacles only have meaningful targets through Illaoi’s original Q, W, E, and R interactions.',
+          'The restriction keeps the passive from presenting a spawn-only system with no portable action.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Illaoi.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'kalista',
+        variants: [
+          {
+            id: 'kalista-default',
+            label: 'Default kit',
+            componentOverrides: {
+              r: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Fate’s Call requires Kalista’s Oathsworn ally from her original kit.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Kalista remains one default-kit variant because Body and Q/W/E retain meaningful standalone actions.',
+          'R (Fate’s Call) is unavailable because it only acts on Kalista’s Oathsworn ally, a relationship supplied by the original kit rather than a portable slot.',
+          'Kalista is not excluded because the remaining components are still meaningful.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Kalista.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'karma',
+        variants: [
+          {
+            id: 'karma-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Gathering Fire only reduces the cooldown of Karma’s Mantra (R).',
+                },
+              },
+              r: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Mantra only empowers Karma’s Q, W, or E abilities.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Karma remains one default-kit variant because Body and Q/W/E retain meaningful standalone actions.',
+          'Passive only reduces the cooldown of R, while R only adds reviewed effects to Karma’s Q/W/E; the pair cannot be split across a no-repeat draft.',
+          'Both restrictions are targeted component restrictions rather than a champion exclusion.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Karma.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'leblanc',
+        variants: [
+          {
+            id: 'leblanc-default',
+            label: 'Default kit',
+            componentOverrides: {
+              r: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Mimic requires one of LeBlanc’s original Q, W, or E spells.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'LeBlanc remains one default-kit variant because Body and Q/W/E retain meaningful standalone actions.',
+          'R (Mimic) is unavailable because its only action is to repeat an omitted LeBlanc basic spell.',
+          'The restriction avoids allowing R to implicitly supply a second ability slot.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Leblanc.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'mel',
+        variants: [
+          {
+            id: 'mel-default',
+            label: 'Default kit',
+            componentOverrides: {
+              r: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary:
+                    'Golden Eclipse requires Overwhelm marks supplied by Mel’s original Passive.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Mel remains one default-kit variant because Body, Passive, and Q/W/E retain meaningful standalone actions.',
+          'R (Golden Eclipse) is unavailable because it can only be cast on enemies marked with Overwhelm, which is supplied by Mel’s Passive.',
+          'The restriction keeps the ultimate from presenting a cast with no legal target in a no-repeat build.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Mel.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'pantheon',
+        variants: [
+          {
+            id: 'pantheon-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Mortal Will only empowers Pantheon’s other spells.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Pantheon remains one default-kit variant because Body and Q/W/E/R retain meaningful standalone actions.',
+          'Passive (Mortal Will) is unavailable because its only output is an unspecified empowerment of Pantheon’s omitted spell kit.',
+          'The component is restricted rather than inventing a portable effect for an omitted spell.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Pantheon.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'renekton',
+        variants: [
+          {
+            id: 'renekton-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Reign of Anger only empowers Renekton’s other abilities with Fury.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Renekton remains one default-kit variant because Body and Q/W/E/R retain meaningful standalone actions.',
+          'Passive (Reign of Anger) is unavailable because Fury has no meaningful consumer after Renekton’s other abilities are omitted.',
+          'Renekton’s temporary R transformation remains available under the existing normal-variant ruling.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Renekton.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'riven',
+        variants: [
+          {
+            id: 'riven-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Runic Blade requires charges from Riven’s original abilities.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Riven remains one default-kit variant because Body and Q/W/E/R retain meaningful standalone actions.',
+          'Passive (Runic Blade) is unavailable because its bonus basic-attack damage requires charges generated by Riven’s omitted abilities.',
+          'Riven’s R empowerment remains contained within R and follows the existing normal-variant ruling.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Riven.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'rumble',
+        variants: [
+          {
+            id: 'rumble-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Junkyard Titan requires Rumble’s original spells to generate Heat.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Rumble remains one default-kit variant because Body and Q/W/E/R retain meaningful standalone actions.',
+          'Passive (Junkyard Titan) is unavailable because Heat is generated by Rumble’s omitted spells and otherwise has no portable lifecycle.',
+          'The restriction avoids carrying Danger Zone and Overheating as an implicit second ability system.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Rumble.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'sejuani',
+        variants: [
+          {
+            id: 'sejuani-default',
+            label: 'Default kit',
+            componentOverrides: {
+              e: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary:
+                    'Permafrost requires maximum Frost stacks supplied by Sejuani’s original kit.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Sejuani remains one default-kit variant because Body and Q/W/R retain meaningful standalone actions.',
+          'E (Permafrost) is unavailable because it only damages and stuns targets carrying maximum Frost stacks supplied by Sejuani’s omitted kit.',
+          'The restriction preserves the meaningful direct actions without inventing a Frost source.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Sejuani.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'smolder',
+        variants: [
+          {
+            id: 'smolder-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary:
+                    'Dragon Practice only increases damage for Smolder’s other basic abilities.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Smolder remains one default-kit variant because Body and Q/W/E/R retain meaningful standalone actions.',
+          'Passive (Dragon Practice) is unavailable because its stacks only improve Smolder’s omitted basic abilities.',
+          'Smolder’s direct Q action remains available without the upgrade progression.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Smolder.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'syndra',
+        variants: [
+          {
+            id: 'syndra-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Transcendent only upgrades Syndra’s other abilities.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Syndra remains one default-kit variant because Body and Q/W/E/R retain meaningful standalone actions.',
+          'Passive (Transcendent) is unavailable because each listed Splinters of Wrath upgrade targets an omitted Syndra ability.',
+          'The restriction avoids carrying an ability-specific upgrade tree without its target abilities.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Syndra.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'twitch',
+        variants: [
+          {
+            id: 'twitch-default',
+            label: 'Default kit',
+            componentOverrides: {
+              e: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary:
+                    'Contaminate requires Deadly Venom stacks supplied by Twitch’s original kit.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Twitch remains one default-kit variant because Body and Q/W/R retain meaningful standalone actions.',
+          'E (Contaminate) is unavailable because it only damages enemies carrying Deadly Venom stacks supplied by Twitch’s Passive or W.',
+          'The restriction prevents a damage cast with no legal poisoned target in a no-repeat build.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Twitch.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'viktor',
+        variants: [
+          {
+            id: 'viktor-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Glorious Evolution only augments Viktor’s other abilities.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Viktor remains one default-kit variant because Body and Q/W/E/R retain meaningful standalone actions.',
+          'Passive (Glorious Evolution) is unavailable because Hex Fragments only augment Viktor’s omitted active abilities.',
+          'The restriction avoids carrying an upgrade progression that has no selected target.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Viktor.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'yunara',
+        variants: [
+          {
+            id: 'yunara-default',
+            label: 'Default kit',
+            componentOverrides: {
+              r: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Transcend One’s Self only upgrades Yunara’s basic abilities.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Yunara remains one default-kit variant because Body, Passive, and Q/W/E retain meaningful standalone actions.',
+          'R (Transcend One’s Self) is unavailable because its only effect upgrades Yunara’s omitted basic abilities.',
+          'The restriction avoids carrying a temporary state with no selected target abilities.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Yunara.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'zilean',
+        variants: [
+          {
+            id: 'zilean-default',
+            label: 'Default kit',
+            componentOverrides: {
+              w: {
+                availability: {
+                  status: 'conditional',
+                  ruleId: 'zilean-rewind-composite-basic-abilities',
+                  summary:
+                    'Reduces the cooldowns of the composite champion’s other basic abilities.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Zilean remains one default-kit variant because Body and Q/E/R retain meaningful standalone actions.',
+          'W (Rewind) is a reviewed exception: its source effect is normalized to reduce the cooldowns of the composite champion’s other basic abilities when Zilean’s own Q/E are omitted.',
+          'The exception keeps W selectable without supplying or rewriting another build slot, and it does not affect the ultimate.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Zilean.json',
+        ],
+        reviewedForDataDragonVersion: '16.17.1',
+      },
+      {
+        championId: 'zyra',
+        variants: [
+          {
+            id: 'zyra-default',
+            label: 'Default kit',
+            componentOverrides: {
+              passive: {
+                availability: {
+                  status: 'unavailable',
+                  reasonCode: 'requires-original-kit',
+                  summary: 'Garden of Thorns requires Zyra’s Q or E to grow its seeds into plants.',
+                },
+              },
+            },
+          },
+        ],
+        notes: [
+          'Zyra remains one default-kit variant because Body and Q/W/E/R retain meaningful standalone actions.',
+          'Passive (Garden of Thorns) is unavailable because its seeds only become meaningful plants through Zyra’s omitted Q or E.',
+          'The restriction keeps a seed generator without a portable consumer out of the selectable pool.',
+        ],
+        sourceRefs: [
+          'https://ddragon.leagueoflegends.com/cdn/16.17.1/data/en_US/champion/Zyra.json',
         ],
         reviewedForDataDragonVersion: '16.17.1',
       },

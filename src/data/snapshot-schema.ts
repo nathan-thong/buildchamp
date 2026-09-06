@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const CHAMPION_DATA_SCHEMA_VERSION = 1 as const;
 export const DATA_DRAGON_LOCALE = 'en_US' as const;
-export const IMPORTER_VERSION = '1.1.0' as const;
+export const IMPORTER_VERSION = '1.2.0' as const;
 
 const nonEmptyString = z.string().min(1);
 const finiteNumber = z.number().finite();
@@ -493,6 +493,7 @@ export const ComponentOverrideSchema = z
   .object({
     availability: AvailabilitySchema.optional(),
     bodyStats: BodyStatsOverrideSchema.optional(),
+    iconRef: z.string().url().optional(),
     sourceSpellIds: z.array(nonEmptyString).min(1).optional(),
     fallbackSourceSpellIds: z.array(nonEmptyString).min(1).optional(),
     sourceDataValueNames: z.array(nonEmptyString).min(1).optional(),
@@ -527,10 +528,19 @@ export const CompatibilityVariantSchema = z
   .strict();
 export type CompatibilityVariant = z.infer<typeof CompatibilityVariantSchema>;
 
+const AssetOverridesSchema = z
+  .object({
+    defaultSplash: z.string().url().optional(),
+    defaultLoading: z.string().url().optional(),
+  })
+  .strict();
+export type AssetOverrides = z.infer<typeof AssetOverridesSchema>;
+
 export const CompatibilityEntrySchema = z
   .object({
     championId: nonEmptyString,
     excludeChampion: z.object({ reason: nonEmptyString }).strict().optional(),
+    assetOverrides: AssetOverridesSchema.optional(),
     variants: z.array(CompatibilityVariantSchema).optional(),
     notes: z.array(nonEmptyString).min(1),
     sourceRefs: z.array(nonEmptyString).min(1),

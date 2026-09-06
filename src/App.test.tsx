@@ -23,6 +23,9 @@ describe('BuildChamp foundation routes', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Rules' })).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
+    expect(
+      screen.queryByRole('img', { name: /example champion silhouette/i }),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: /start solo draft/i }));
 
     expect(window.location.pathname).toBe('/solo');

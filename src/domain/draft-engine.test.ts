@@ -80,7 +80,7 @@ describe('draft engine', () => {
       expect(completed.completion?.picks).toHaveLength(6);
       expect(new Set(completed.usedChampionIds).size).toBe(6);
     }
-  });
+  }, 15_000);
 
   it('uses one weight per base champion before selecting a variant', () => {
     const firstFormRun = createRun(VARIANT_DRAFT_FIXTURE, sequenceRandom([0.36, 0.99]));

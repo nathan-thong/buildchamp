@@ -99,6 +99,18 @@ export type CompletedRunState = RunStateBase &
 
 export type RunState = DraftingRunState | CompletedRunState;
 
+/** Versioned, compact representation used by the browser recovery adapter. */
+export const PERSISTED_DRAFTING_RUN_VERSION = 1 as const;
+export type PersistedDraftingRun = Readonly<{
+  schemaVersion: typeof PERSISTED_DRAFTING_RUN_VERSION;
+  snapshotVersion: string;
+  round: number;
+  usedChampionIds: readonly string[];
+  lockedBuild: LockedBuild;
+  picks: readonly LockedSelection[];
+  offer: Readonly<Pick<Offer, 'id' | 'championId' | 'variantId'>>;
+}>;
+
 export type DraftEngineErrorCode =
   | 'invalid-state'
   | 'invalid-selection'
@@ -166,6 +178,84 @@ export function freshRematch(
 
 /** Alias that reads naturally at call sites handling a completed run. */
 export const rematch = freshRematch;
+
+/** Reduce an active run to identifiers that are safe to keep in local storage. */
+export function serializeDraftingRun(state: DraftingRunState): PersistedDraftingRun {
+  return {
+    schemaVersion: PERSISTED_DRAFTING_RUN_VERSION,
+    snapshotVersion: state.snapshotVersion,
+    round: state.round,
+    usedChampionIds: [...state.usedChampionIds],
+    lockedBuild: { ...state.lockedBuild },
+    picks: [...state.picks],
+    offer: {
+      id: state.offer.id,
+      championId: state.offer.championId,
+      variantId: state.offer.variantId,
+    },
+  };
+}
+
+/**
+ * Rehydrate a stored active run against the current bundled snapshot. The
+ * offer is rebuilt from its references and must still be a legal offer for the
+ * recovered position before it is returned to the UI.
+ */
+export function restoreDraftingRun(
+  snapshot: ChampionSnapshot,
+  persisted: PersistedDraftingRun,
+): DraftingRunState {
+  if (persisted.schemaVersion !== PERSISTED_DRAFTING_RUN_VERSION) {
+    throw new DraftEngineError('invalid-state', 'Stored draft data uses an unsupported version.');
+  }
+
+  if (persisted.snapshotVersion !== snapshot.dataDragonVersion) {
+    throw new DraftEngineError(
+      'invalid-state',
+      `Stored draft snapshot ${persisted.snapshotVersion} does not match ${snapshot.dataDragonVersion}.`,
+    );
+  }
+
+  const champion = snapshot.champions.find(
+    (candidate) => candidate.id === persisted.offer.championId,
+  );
+  const variant = champion?.variants.find(
+    (candidate) => candidate.id === persisted.offer.variantId,
+  );
+  if (!champion || !variant || champion.excluded) {
+    throw new DraftEngineError('invalid-state', 'Stored draft offer is no longer available.');
+  }
+
+  const offer = createOffer(champion, variant, getLockedSlotMask(persisted.lockedBuild));
+  if (
+    offer.id !== persisted.offer.id ||
+    offer.championId !== persisted.offer.championId ||
+    offer.variantId !== persisted.offer.variantId
+  ) {
+    throw new DraftEngineError('invalid-state', 'Stored draft offer references are inconsistent.');
+  }
+
+  const recovered: DraftingRunState = {
+    snapshotVersion: persisted.snapshotVersion,
+    round: persisted.round,
+    status: 'drafting',
+    offer,
+    completion: null,
+    usedChampionIds: [...persisted.usedChampionIds],
+    lockedBuild: { ...persisted.lockedBuild },
+    picks: [...persisted.picks],
+  };
+
+  assertRunState(snapshot, recovered);
+  const legalOffer = getLegalOffers(snapshot, recovered).find(
+    (candidate) => candidate.id === recovered.offer.id,
+  );
+  if (!legalOffer) {
+    throw new DraftEngineError('invalid-state', 'Stored draft offer is not legal for this run.');
+  }
+
+  return { ...recovered, offer: legalOffer };
+}
 
 /** Return the one-based round currently shown to a player. */
 export function currentRound(state: RunState): number {
@@ -723,6 +813,8 @@ function assertRunState(snapshot: ChampionSnapshot, state: RunState): void {
     ) {
       throw new DraftEngineError('invalid-state', 'Run picks and locked build are out of sync.');
     }
+
+    assertSelectionReference(snapshot, pick);
   }
 
   if (lockedSlots.some((slot) => !pickSlots.has(slot))) {
@@ -773,6 +865,26 @@ function assertRunState(snapshot: ChampionSnapshot, state: RunState): void {
     throw new DraftEngineError('invalid-state', 'Run status is invalid.');
   } else if (state.round !== DRAFT_SLOT_ORDER.length || state.offer !== null || !state.completion) {
     throw new DraftEngineError('invalid-state', 'Completed state is missing its final build.');
+  }
+}
+
+function assertSelectionReference(snapshot: ChampionSnapshot, selection: LockedSelection): void {
+  const champion = snapshot.champions.find((candidate) => candidate.id === selection.championId);
+  const variant = champion?.variants.find((candidate) => candidate.id === selection.variantId);
+  const component = variant?.components[selection.slot];
+  if (
+    !champion ||
+    champion.excluded ||
+    !variant ||
+    `${selection.championId}::${selection.variantId}` !== selection.offerId ||
+    !component ||
+    component.id !== selection.componentId ||
+    component.availability.status === 'unavailable'
+  ) {
+    throw new DraftEngineError(
+      'invalid-state',
+      'Run contains a selection not found in the snapshot.',
+    );
   }
 }
 

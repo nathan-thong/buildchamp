@@ -335,17 +335,21 @@ export function makeAlternateSpellSources(): AlternateSpellCatalog {
       ),
     },
     gnar: {
-      GnarQ: recordWithValues(
-        'GnarQ',
-        [16, 14.5, 13, 11.5, 10, 10],
-        [1100, 1100, 1100, 1100, 1100, 1100],
-        values([
-          ['MiniBaseDamage', 'Mini Base Damage', [5, 45, 85, 125, 165, 205]],
-          ['SlowAmount', 'Slow Amount', [15, 20, 25, 30, 35, 40]],
-          ['MegaBaseDamage', 'Mega Base Damage', [45, 90, 135, 180, 225, 270]],
-          ['MegaSlowAmount', 'Mega Slow Amount', [30, 35, 40, 45, 50, 55]],
-        ]),
-      ),
+      GnarQ: {
+        ...recordWithValues(
+          'GnarQ',
+          [16, 14.5, 13, 11.5, 10, 10],
+          [1100, 1100, 1100, 1100, 1100, 1100],
+          values([
+            ['MiniBaseDamage', 'Mini Base Damage', [5, 45, 85, 125, 165, 205]],
+            ['SlowAmount', 'Slow Amount', [15, 20, 25, 30, 35, 40]],
+            ['MegaBaseDamage', 'Mega Base Damage', [45, 90, 135, 180, 225, 270]],
+            ['MegaSlowAmount', 'Mega Slow Amount', [30, 35, 40, 45, 50, 55]],
+          ]),
+        ),
+        iconRef:
+          'https://raw.communitydragon.org/15.17/game/assets/characters/gnar/hud/icons2d/gnar_q.png',
+      },
       GnarW: recordWithValues(
         'GnarW',
         [7, 7, 7, 7, 7, 7],
@@ -367,22 +371,29 @@ export function makeAlternateSpellSources(): AlternateSpellCatalog {
           ['MegaDamage', 'Mega Damage', [80, 115, 150, 185, 220, 255]],
         ]),
       ),
-      GnarBigQ: recordWithValues(
-        'GnarBigQ',
-        [16, 14.5, 13, 11.5, 10, 10],
-        [1100, 1100, 1100, 1100, 1100, 1100],
-        values([
-          ['MegaBaseDamage', 'Mega Base Damage', [45, 90, 135, 180, 225, 270]],
-          ['MegaSlowAmount', 'Mega Slow Amount', [0.3, 0.35, 0.4, 0.45, 0.5, 0.55]],
-        ]),
-      ),
-      GnarBigW: record('GnarBigW', [7, 7, 7, 7, 7, 7], [525, 525, 525, 525, 525, 525], '45'),
-      GnarBigE: record(
-        'GnarBigE',
-        [22, 19.5, 17, 14.5, 12, 12],
-        [675, 675, 675, 675, 675, 675],
-        '80',
-      ),
+      GnarBigQ: {
+        ...recordWithValues(
+          'GnarBigQ',
+          [16, 14.5, 13, 11.5, 10, 10],
+          [1100, 1100, 1100, 1100, 1100, 1100],
+          values([
+            ['MegaBaseDamage', 'Mega Base Damage', [45, 90, 135, 180, 225, 270]],
+            ['MegaSlowAmount', 'Mega Slow Amount', [0.3, 0.35, 0.4, 0.45, 0.5, 0.55]],
+          ]),
+        ),
+        iconRef:
+          'https://raw.communitydragon.org/15.17/game/assets/characters/gnar/hud/icons2d/gnarbig_q.png',
+      },
+      GnarBigW: {
+        ...record('GnarBigW', [7, 7, 7, 7, 7, 7], [525, 525, 525, 525, 525, 525], '45'),
+        iconRef:
+          'https://raw.communitydragon.org/15.17/game/assets/characters/gnar/hud/icons2d/gnarbig_w.png',
+      },
+      GnarBigE: {
+        ...record('GnarBigE', [22, 19.5, 17, 14.5, 12, 12], [675, 675, 675, 675, 675, 675], '80'),
+        iconRef:
+          'https://raw.communitydragon.org/15.17/game/assets/characters/gnar/hud/icons2d/gnarbig_e.png',
+      },
     },
     kayn: {
       KaynQ: recordWithValues(

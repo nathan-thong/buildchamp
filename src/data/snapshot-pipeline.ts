@@ -107,6 +107,10 @@ export function dataDragonAssetUrl(version: string, type: string, fileName: stri
   return `${DATA_DRAGON_HOST}/cdn/${version}/img/${type}/${fileName}`;
 }
 
+export function dataDragonUnversionedAssetUrl(type: string, fileName: string): string {
+  return `${DATA_DRAGON_HOST}/cdn/img/${type}/${fileName}`;
+}
+
 export function stableJsonStringify(value: unknown): string {
   return JSON.stringify(canonicalizeJson(value));
 }
@@ -290,16 +294,12 @@ function normalizeChampion(
 ): Champion {
   const assetRefs = {
     icon: dataDragonAssetUrl(options.dataDragonVersion, 'champion', summary.image.full),
-    defaultSplash: dataDragonAssetUrl(
-      options.dataDragonVersion,
-      'champion/splash',
-      `${summary.id}_0.jpg`,
-    ),
-    defaultLoading: dataDragonAssetUrl(
-      options.dataDragonVersion,
-      'champion/loading',
-      `${summary.id}_0.jpg`,
-    ),
+    defaultSplash:
+      compatibility?.assetOverrides?.defaultSplash ??
+      dataDragonUnversionedAssetUrl('champion/splash', `${summary.id}_0.jpg`),
+    defaultLoading:
+      compatibility?.assetOverrides?.defaultLoading ??
+      dataDragonUnversionedAssetUrl('champion/loading', `${summary.id}_0.jpg`),
   };
 
   if (compatibility?.excludeChampion) {
@@ -441,7 +441,7 @@ function getSourceSpells(
   sourceDataValueMultipliers: Readonly<Record<string, number>> | undefined,
   alternateSpellSources: AlternateSpellCatalog | undefined,
   detailUrl: string,
-): Array<{ spell: RawSpell; index: number; sourceRefs?: string[] }> {
+): Array<{ spell: RawSpell; index: number; iconRef?: string; sourceRefs?: string[] }> {
   if (sourceDataValueMultipliers && !sourceDataValueNames) {
     throw new SnapshotPipelineError(
       `Compatibility mapping for ${championId} ${slot.toUpperCase()} cannot provide sourceDataValueMultipliers without sourceDataValueNames.`,
@@ -527,6 +527,7 @@ function getSourceSpells(
           ),
         ),
         index: fallbackIndex,
+        ...(alternateSpell.iconRef ? { iconRef: alternateSpell.iconRef } : {}),
         sourceRefs: [alternateSpell.sourceRef, `${detailUrl}#/spells/${fallbackIndex}`],
       };
     }
@@ -638,7 +639,9 @@ function normalizeBodyComponent(
     id: `${championId}:${variantId}:body`,
     slot: 'body',
     name: override?.name ?? summary.name,
-    iconRef: dataDragonAssetUrl(options.dataDragonVersion, 'champion', summary.image.full),
+    iconRef:
+      override?.iconRef ??
+      dataDragonAssetUrl(options.dataDragonVersion, 'champion', summary.image.full),
     shortDescription,
     fullDescription,
     values: bodyStatDisplayValues(bodyStats),
@@ -649,6 +652,7 @@ function normalizeBodyComponent(
       `${sourceUrl}#/stats`,
       `${sourceUrl}#/image`,
       ...(override?.bodyStats?.sourceRefs ?? []),
+      ...(override?.iconRef ? [override.iconRef] : []),
     ],
     bodyStats,
   };
@@ -769,16 +773,22 @@ function normalizeAbilityComponent(
     .filter(({ spell }) => isHealthCost(spell.resource))
     .map(({ spell }) => displayValue('Health cost', spell.cost, spell.name))
     .filter((value): value is DisplayValue => value !== undefined);
-  const primarySpell = spells[0];
+  const primarySourceSpell = sourceSpells[0];
+  const primarySpell = primarySourceSpell.spell;
 
   return {
     id: `${championId}:${variantId}:${slot}`,
     slot,
     name: override?.name ?? (spells.length === 1 ? primarySpell.name : packageDescription),
-    iconRef: dataDragonAssetUrl(options.dataDragonVersion, 'spell', primarySpell.image.full),
+    iconRef:
+      override?.iconRef ??
+      primarySourceSpell.iconRef ??
+      dataDragonAssetUrl(options.dataDragonVersion, 'spell', primarySpell.image.full),
     shortDescription:
       override?.shortDescription ??
-      (spells.length === 1 ? descriptions[0] : `Spell package: ${packageDescription}.`),
+      (spells.length === 1
+        ? summarizeSourceDescription(descriptions[0])
+        : `Spell package: ${packageDescription}.`),
     fullDescription:
       override?.fullDescription ??
       descriptions
@@ -796,9 +806,9 @@ function normalizeAbilityComponent(
     availability: override?.availability ?? { status: 'available' },
     dependencies: override?.dependencies ?? [],
     carriedMechanics: override?.carriedMechanics ?? [],
-    sourceRefs: sourceSpells.flatMap(
-      ({ index, sourceRefs }) => sourceRefs ?? [`${detailUrl}#/spells/${index}`],
-    ),
+    sourceRefs: sourceSpells
+      .flatMap(({ index, sourceRefs }) => sourceRefs ?? [`${detailUrl}#/spells/${index}`])
+      .concat(override?.iconRef ? [override.iconRef] : []),
   };
 }
 
@@ -826,16 +836,19 @@ function normalizePassiveComponent(
     id: `${championId}:${variantId}:passive`,
     slot: 'passive',
     name: override?.name ?? detail.passive.name,
-    iconRef: dataDragonAssetUrl(options.dataDragonVersion, 'passive', detail.passive.image.full),
+    iconRef:
+      override?.iconRef ??
+      dataDragonAssetUrl(options.dataDragonVersion, 'passive', detail.passive.image.full),
     shortDescription:
-      override?.shortDescription ?? normalizeSourceDescription(detail.passive.description),
+      override?.shortDescription ??
+      summarizeSourceDescription(normalizeSourceDescription(detail.passive.description)),
     fullDescription:
       override?.fullDescription ?? normalizeSourceDescription(detail.passive.description),
     values: [],
     availability: override?.availability ?? { status: 'available' },
     dependencies: override?.dependencies ?? [],
     carriedMechanics: override?.carriedMechanics ?? [],
-    sourceRefs: [`${detailUrl}#/passive`],
+    sourceRefs: [`${detailUrl}#/passive`, ...(override?.iconRef ? [override.iconRef] : [])],
   };
 }
 
@@ -849,12 +862,10 @@ function spellDisplayValues(spell: RawSpell, labelPrefix: string | undefined): D
   const values: DisplayValue[] = [];
 
   for (let index = 0; index < count; index += 1) {
-    const rawValue = firstDisplayValue(
-      levelEffects[index],
-      spell.effectBurn[index],
-      spell.effect[index],
-    );
-    if (rawValue === undefined) {
+    const rawValue = hasLevelTip
+      ? levelEffects[index]
+      : firstDisplayValue(spell.effectBurn[index], spell.effect[index]);
+    if (!isReadableDisplayValue(rawValue)) {
       continue;
     }
 
@@ -943,6 +954,22 @@ function normalizeSourceDescription(description: string): string {
   }
 
   return normalized;
+}
+
+function summarizeSourceDescription(description: string): string {
+  const firstParagraph = description.split(/\n{2,}/, 1)[0]?.trim() ?? description;
+  const firstSentence = firstParagraph.match(/^.*?[.!?](?=\s|$)/)?.[0]?.trim();
+  return firstSentence || firstParagraph;
+}
+
+function isReadableDisplayValue(
+  value: string | number | number[] | null | undefined,
+): value is string | number | number[] {
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  return typeof value !== 'string' || (value.trim().length > 0 && !value.includes('{{'));
 }
 
 function buildEligibilityIndexes(champions: readonly Champion[]) {

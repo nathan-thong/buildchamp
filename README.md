@@ -6,12 +6,13 @@ Each run gives you six champion reveals. For each one, permanently claim one rem
 
 ## Project Status
 
-Slice 3, Pure Draft Engine, is implemented. The repository now contains a validated English Data
+Slice 4, Solo Gameplay, is implemented. The repository now contains a validated English Data
 Dragon 16.17.1 snapshot, deterministic source/cache/normalize/emit stages, reviewed champion
 compatibility entries covering shared systems and transformed states, a generated patch report, and
-a pure deterministic engine with adaptive legal-path checking. The playable solo route is
-intentionally not implemented yet; the existing board still labels its interface-only fixture data
-clearly. See
+a pure deterministic engine with adaptive legal-path checking. The `/solo` route now runs a complete,
+untimed six-round draft with irreversible locks, snapshot-backed artwork and ability details, local
+active-run recovery, a final reveal, and a fresh rematch. The home board and `/build/demo` remain
+clearly labelled foundation/demo fixtures. See
 [CURRENT_STATE.md](./CURRENT_STATE.md) for the concise, maintained implementation handoff.
 
 The plan is:
@@ -80,10 +81,11 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-The current solo and result screens use explicitly labelled interface fixtures. No Data Dragon
-request or Riot asset is made at runtime, and no gameplay claims should be inferred from the
-fixture board. To refresh the pinned snapshot deliberately, provide an explicit version and stable
-generation timestamp:
+The `/solo` route consumes the bundled, validated snapshot and may request the default artwork URLs
+recorded in that snapshot. It does not fetch mutable champion data at gameplay runtime.
+The home and result screens still use explicitly labelled interface fixtures; no gameplay claims
+should be inferred from those fixture boards. To refresh the pinned snapshot deliberately, provide
+an explicit version and stable generation timestamp:
 
 ```sh
 pnpm sync:champion-data -- --version 16.17.1 --generated-at 2026-09-05T00:00:00.000Z
@@ -109,7 +111,7 @@ See [PRODUCT.md](./PRODUCT.md) and [CHAMPION_DATA.md](./CHAMPION_DATA.md) for th
 
 ## Riot Games and Asset Notice
 
-BuildChamp is an unofficial fan project and is not endorsed, sponsored, or operated by Riot Games. It is intended to be non-commercial in its initial releases. The planned product may use Riot-provided champion data, icons, and default artwork, but no Riot assets are included in the repository at this foundation stage.
+BuildChamp is an unofficial fan project and is not endorsed, sponsored, or operated by Riot Games. It is intended to be non-commercial in its initial releases. The repository contains a validated snapshot of Riot-provided champion data and references to default artwork; public use of these data or assets remains gated on the maintainer's policy and registration review.
 
 Before any public release using Riot data or assets, the maintainer must confirm that the product is eligible under Riot's then-current policies and register it through the Riot Developer Portal as required. Riot's current policies contain specific restrictions for games and apps using Riot intellectual property, so this documentation does not claim approval or guarantee eligibility.
 

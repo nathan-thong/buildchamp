@@ -1,7 +1,5 @@
 import { AppLink } from '../components/AppLink';
-import { ChampionFixture } from '../components/ChampionFixture';
-import { FOUNDATION_CHAMPION } from '../data/foundation-fixture';
-import { SLOT_METADATA, SLOT_ORDER } from '../domain/slots';
+import { HomeSlotCarousel } from '../components/HomeSlotCarousel';
 
 export function HomePage() {
   return (
@@ -47,26 +45,11 @@ export function HomePage() {
               <span>Solo draft</span>
               <span>Preview</span>
             </div>
-            <div className="home-build-card__art">
-              <ChampionFixture />
-              <div className="home-build-card__art-copy">
-                <span>Example</span>
-                <strong>{FOUNDATION_CHAMPION.name}</strong>
-              </div>
-            </div>
             <div className="home-build-card__title">
               <span>Six slots</span>
               <h2 id="home-board-title">Build</h2>
             </div>
-            <div aria-label="Six build slots" className="home-build-card__slots">
-              {SLOT_ORDER.map((slot) => (
-                <div className="home-build-card__slot" key={slot}>
-                  <span>{SLOT_METADATA[slot].index}</span>
-                  <strong>{SLOT_METADATA[slot].label}</strong>
-                  <i aria-hidden="true" />
-                </div>
-              ))}
-            </div>
+            <HomeSlotCarousel />
           </article>
         </div>
       </section>

@@ -26,11 +26,43 @@ for (const entry of TEST_COMPATIBILITY_MANIFEST.entries) {
   );
 }
 
+const TEST_FIXTURE_MANIFEST = {
+  ...TEST_COMPATIBILITY_MANIFEST,
+  entries: TEST_COMPATIBILITY_MANIFEST.entries.filter(
+    (entry) =>
+      ![
+        'azir',
+        'aurelion-sol',
+        'fiddlesticks',
+        'heimerdinger',
+        'illaoi',
+        'kalista',
+        'karma',
+        'leblanc',
+        'mel',
+        'pantheon',
+        'renekton',
+        'riven',
+        'rumble',
+        'sejuani',
+        'smolder',
+        'syndra',
+        'twitch',
+        'viktor',
+        'xayah',
+        'yorick',
+        'yunara',
+        'zilean',
+        'zyra',
+      ].includes(entry.championId),
+  ),
+};
+
 const GENERATION_OPTIONS = {
   dataDragonVersion: TEST_DATA_DRAGON_VERSION,
   generatedAt: '2026-09-05T00:00:00.000Z',
   sourceHash: 'a'.repeat(64),
-  manifest: TEST_COMPATIBILITY_MANIFEST,
+  manifest: TEST_FIXTURE_MANIFEST,
   alternateSpellSources: makeAlternateSpellSources(),
 };
 
@@ -44,7 +76,7 @@ describe('normalizeChampionSnapshot', () => {
     expect(first.schemaVersion).toBe(1);
     expect(first.dataDragonVersion).toBe(TEST_DATA_DRAGON_VERSION);
     expect(first.generation).toEqual({
-      importerVersion: '1.1.0',
+      importerVersion: '1.2.0',
       sourceHash: 'a'.repeat(64),
       sourceChampionCount: 12,
     });
@@ -78,10 +110,38 @@ describe('normalizeChampionSnapshot', () => {
     expect(
       normalChampion?.variants[0]?.components.q.values.map((value) => value.label),
     ).not.toContain('Mana Cost');
-    expect(normalChampion?.assetRefs.defaultSplash).toContain('/champion/splash/NormalChamp_0.jpg');
+    expect(normalChampion?.assetRefs.defaultSplash).toBe(
+      'https://ddragon.leagueoflegends.com/cdn/img/champion/splash/NormalChamp_0.jpg',
+    );
+    expect(normalChampion?.assetRefs.defaultLoading).toBe(
+      'https://ddragon.leagueoflegends.com/cdn/img/champion/loading/NormalChamp_0.jpg',
+    );
     expect(normalChampion?.variants[0]?.components.q.sourceRefs[0]).toContain(
       '/champion/NormalChamp.json#/spells/0',
     );
+  });
+
+  it('keeps summaries concise and omits unresolved formula templates', () => {
+    const source = makeExceptionSource();
+    const normalChampion = source.details.NormalChamp;
+    if (!normalChampion) {
+      throw new Error('NormalChamp fixture is missing.');
+    }
+
+    normalChampion.spells[0].description =
+      'The first sentence stays in the card. The second sentence belongs in the full details panel.';
+    normalChampion.spells[0].leveltip = {
+      label: ['Damage'],
+      effect: ['{{ basedamage }} -> {{ basedamageNL }}'],
+    };
+
+    const snapshot = normalizeChampionSnapshot(source, GENERATION_OPTIONS);
+    const component = snapshot.champions.find((champion) => champion.id === 'normal-champ')
+      ?.variants[0]?.components.q;
+
+    expect(component?.shortDescription).toBe('The first sentence stays in the card.');
+    expect(component?.fullDescription).toBe(normalChampion.spells[0].description);
+    expect(component?.values).toEqual([]);
   });
 
   it('applies the reviewed compatibility rulings', () => {
@@ -293,6 +353,18 @@ describe('normalizeChampionSnapshot', () => {
     expect(gnar?.variants[1]?.components.e.values).toEqual([
       { label: 'Mega Damage', values: [80, 115, 150, 185, 220, 255] },
     ]);
+    expect(gnar?.variants[0]?.components.q.iconRef).toBe(
+      'https://raw.communitydragon.org/15.17/game/assets/characters/gnar/hud/icons2d/gnar_q.png',
+    );
+    expect(gnar?.variants[1]?.components.q.iconRef).toBe(
+      'https://raw.communitydragon.org/15.17/game/assets/characters/gnar/hud/icons2d/gnarbig_q.png',
+    );
+    expect(gnar?.variants[0]?.components.r.iconRef).toBe(
+      'https://raw.communitydragon.org/16.17/game/assets/characters/gnar/hud/icons2d/gnar_r_grey.png',
+    );
+    expect(gnar?.variants[1]?.components.r.iconRef).toBe(
+      'https://raw.communitydragon.org/16.17/game/assets/characters/gnar/hud/icons2d/gnarbig_r.png',
+    );
     expect(gnar?.variants[1]?.components.q.range?.values).toEqual([
       1100, 1100, 1100, 1100, 1100, 1100,
     ]);
@@ -337,6 +409,18 @@ describe('normalizeChampionSnapshot', () => {
       expect.objectContaining({ label: 'Slayer Base Max HP Damage' }),
     );
     expect(kayn?.variants[1]?.components.w.name).toBe("Blade's Reach — Shadow Assassin");
+    expect(kayn?.variants[0]?.components.q.iconRef).toBe(
+      'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_q_slay.png',
+    );
+    expect(kayn?.variants[1]?.components.q.iconRef).toBe(
+      'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_q_ass.png',
+    );
+    expect(kayn?.variants[0]?.components.passive.iconRef).toBe(
+      'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_passive_slay.png',
+    );
+    expect(kayn?.variants[1]?.components.passive.iconRef).toBe(
+      'https://raw.communitydragon.org/16.17/game/assets/characters/kayn/hud/icons2d/kayn_passive_ass.png',
+    );
     expect(
       kayn?.variants.every((variant) => variant.components.r.availability.status === 'available'),
     ).toBe(true);
@@ -346,6 +430,140 @@ describe('normalizeChampionSnapshot', () => {
       status: 'unavailable',
       reasonCode: 'overwrites-other-slots',
     });
+  });
+
+  it('marks standalone components with no meaningful source state as unavailable', () => {
+    const snapshot = normalizeChampionSnapshot(
+      makeRawSource([
+        makeRawChampion('Xayah', '498', ['XayahQ', 'XayahW', 'XayahE', 'XayahR']),
+        makeRawChampion('Yorick', '83', ['YorickQ', 'YorickW', 'YorickE', 'YorickR']),
+      ]),
+      {
+        ...GENERATION_OPTIONS,
+        manifest: {
+          ...TEST_COMPATIBILITY_MANIFEST,
+          entries: TEST_COMPATIBILITY_MANIFEST.entries.filter((entry) =>
+            ['xayah', 'yorick'].includes(entry.championId),
+          ),
+        },
+      },
+    );
+    const xayah = snapshot.champions.find((champion) => champion.id === 'xayah');
+    const yorick = snapshot.champions.find((champion) => champion.id === 'yorick');
+
+    expect(xayah?.variants[0]?.components.e.availability).toEqual({
+      status: 'unavailable',
+      reasonCode: 'requires-original-kit',
+      summary: 'Feather Recall requires Feathers supplied by Xayah’s original kit.',
+    });
+    expect(yorick?.variants[0]?.components.passive.availability).toEqual({
+      status: 'unavailable',
+      reasonCode: 'requires-original-kit',
+      summary: 'Shepherd of Souls requires Yorick’s original grave and Mist Walker system.',
+    });
+  });
+
+  it('marks the second-pass standalone portability exceptions as unavailable', () => {
+    const expected = [
+      ['azir', 'q', 'Conquering Sands requires Sand Soldiers supplied by Azir’s original kit.'],
+      ['azir', 'e', 'Shifting Sands requires a Sand Soldier supplied by Azir’s original kit.'],
+      ['aurelion-sol', 'passive', 'Cosmic Creator only upgrades Aurelion Sol’s other abilities.'],
+      ['heimerdinger', 'r', 'UPGRADE!!! only modifies Heimerdinger’s Q, W, or E abilities.'],
+      [
+        'illaoi',
+        'passive',
+        'Prophet of an Elder God requires Tentacle targets supplied by Illaoi’s original kit.',
+      ],
+      ['kalista', 'r', 'Fate’s Call requires Kalista’s Oathsworn ally from her original kit.'],
+      ['karma', 'passive', 'Gathering Fire only reduces the cooldown of Karma’s Mantra (R).'],
+      ['karma', 'r', 'Mantra only empowers Karma’s Q, W, or E abilities.'],
+      ['leblanc', 'r', 'Mimic requires one of LeBlanc’s original Q, W, or E spells.'],
+      ['mel', 'r', 'Golden Eclipse requires Overwhelm marks supplied by Mel’s original Passive.'],
+      ['pantheon', 'passive', 'Mortal Will only empowers Pantheon’s other spells.'],
+      ['renekton', 'passive', 'Reign of Anger only empowers Renekton’s other abilities with Fury.'],
+      ['riven', 'passive', 'Runic Blade requires charges from Riven’s original abilities.'],
+      ['rumble', 'passive', 'Junkyard Titan requires Rumble’s original spells to generate Heat.'],
+      [
+        'sejuani',
+        'e',
+        'Permafrost requires maximum Frost stacks supplied by Sejuani’s original kit.',
+      ],
+      [
+        'smolder',
+        'passive',
+        'Dragon Practice only increases damage for Smolder’s other basic abilities.',
+      ],
+      ['syndra', 'passive', 'Transcendent only upgrades Syndra’s other abilities.'],
+      [
+        'twitch',
+        'e',
+        'Contaminate requires Deadly Venom stacks supplied by Twitch’s original kit.',
+      ],
+      ['viktor', 'passive', 'Glorious Evolution only augments Viktor’s other abilities.'],
+      ['yunara', 'r', 'Transcend One’s Self only upgrades Yunara’s basic abilities.'],
+      ['zyra', 'passive', 'Garden of Thorns requires Zyra’s Q or E to grow its seeds into plants.'],
+    ] as const;
+    const championIds = new Set(expected.map(([championId]) => championId));
+    const source = makeRawSource(
+      [...championIds].map((championId, index) =>
+        makeRawChampion(
+          championId === 'aurelion-sol'
+            ? 'AurelionSol'
+            : championId === 'leblanc'
+              ? 'Leblanc'
+              : championId[0].toUpperCase() + championId.slice(1),
+          String(index + 1),
+          [`${championId}Q`, `${championId}W`, `${championId}E`, `${championId}R`],
+        ),
+      ),
+    );
+    const snapshot = normalizeChampionSnapshot(source, {
+      ...GENERATION_OPTIONS,
+      manifest: {
+        ...TEST_COMPATIBILITY_MANIFEST,
+        entries: TEST_COMPATIBILITY_MANIFEST.entries.filter((entry) =>
+          championIds.has(entry.championId),
+        ),
+      },
+    });
+
+    for (const [championId, slot, summary] of expected) {
+      const component = snapshot.champions.find((champion) => champion.id === championId)
+        ?.variants[0]?.components[slot];
+
+      expect(component?.availability).toEqual({
+        status: 'unavailable',
+        reasonCode: 'requires-original-kit',
+        summary,
+      });
+      expect(component?.dependencies).toEqual([]);
+    }
+  });
+
+  it('applies the reviewed Zilean Rewind portability exception', () => {
+    const snapshot = normalizeChampionSnapshot(
+      makeRawSource([
+        makeRawChampion('Zilean', '26', ['ZileanQ', 'ZileanW', 'ZileanE', 'ZileanR']),
+      ]),
+      {
+        ...GENERATION_OPTIONS,
+        manifest: {
+          ...TEST_COMPATIBILITY_MANIFEST,
+          entries: TEST_COMPATIBILITY_MANIFEST.entries.filter(
+            (entry) => entry.championId === 'zilean',
+          ),
+        },
+      },
+    );
+    const rewind = snapshot.champions.find((champion) => champion.id === 'zilean')?.variants[0]
+      ?.components.w;
+
+    expect(rewind?.availability).toEqual({
+      status: 'conditional',
+      ruleId: 'zilean-rewind-composite-basic-abilities',
+      summary: 'Reduces the cooldowns of the composite champion’s other basic abilities.',
+    });
+    expect(rewind?.dependencies).toEqual([]);
   });
 
   it('fails with an actionable error when a source detail is missing or malformed', () => {

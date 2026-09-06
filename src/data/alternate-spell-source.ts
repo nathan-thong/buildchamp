@@ -19,6 +19,10 @@ const CommunityDragonDataValueSchema = z
 const CommunityDragonSpellDataSchema = z
   .object({
     DataValues: z.array(CommunityDragonDataValueSchema).optional(),
+    mImgIconName: z
+      .union([z.string().min(1), z.array(z.string().min(1)).min(1)])
+      .nullable()
+      .optional(),
     cooldownTime: z.array(z.number().finite()).nullable().optional(),
     castRange: z.array(z.number().finite()).nullable().optional(),
     castRangeDisplayOverride: z.array(z.number().finite()).nullable().optional(),
@@ -70,6 +74,7 @@ type CommunityDragonSpellData = z.infer<typeof CommunityDragonSpellDataSchema>;
 
 export type AlternateSpellRecord = {
   id: string;
+  iconRef?: string;
   cooldown?: number[];
   range?: number[];
   leveltip?: {
@@ -210,6 +215,7 @@ function normalizeCommunityDragonSpell(
   spell: CommunityDragonSpellData,
   sourceRef: string,
 ): AlternateSpellRecord {
+  const iconRef = communityDragonIconRef(spell.mImgIconName, sourceRef);
   const cooldown = normalizePerRankValues(spell.cooldownTime);
   const range = normalizePerRankValues(
     spell.castRangeDisplayOverride ??
@@ -219,6 +225,7 @@ function normalizeCommunityDragonSpell(
 
   return {
     id,
+    ...(iconRef ? { iconRef } : {}),
     ...(cooldown ? { cooldown } : {}),
     ...(range ? { range } : {}),
     ...(normalizedValues.leveltip ? { leveltip: normalizedValues.leveltip } : {}),
@@ -227,6 +234,32 @@ function normalizeCommunityDragonSpell(
       : {}),
     sourceRef,
   };
+}
+
+function communityDragonIconRef(
+  iconName: string | readonly string[] | null | undefined,
+  sourceRef: string,
+): string | undefined {
+  const names = Array.isArray(iconName) ? iconName : iconName ? [iconName] : [];
+  const assetName = names.find((name) => /^assets\//i.test(name.replaceAll('\\', '/')));
+  if (!assetName) {
+    return undefined;
+  }
+
+  const sourceUrl = new URL(sourceRef);
+  const gamePathMarker = '/game/';
+  const gamePathIndex = sourceUrl.pathname.indexOf(gamePathMarker);
+  if (gamePathIndex < 0) {
+    return undefined;
+  }
+
+  const normalizedAssetName = assetName
+    .replaceAll('\\', '/')
+    .replace(/^assets\//i, 'assets/')
+    .replace(/\.dds$/i, '.png')
+    .toLowerCase();
+
+  return `${sourceUrl.origin}${sourceUrl.pathname.slice(0, gamePathIndex + gamePathMarker.length)}${normalizedAssetName}`;
 }
 
 function normalizePerRankValues(

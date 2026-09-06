@@ -201,6 +201,7 @@ type ComponentOverride = {
   };
   sourceSpellIds?: string[];
   fallbackSourceSpellIds?: string[]; // One Data Dragon text/icon fallback per alternate source spell
+  iconRef?: string; // Reviewed alternate icon when the source record has multiple form states
   sourceDataValueNames?: string[]; // Select named values when an alternate source contains multiple forms
   sourceDataValueSourceSpellIds?: string[]; // Alternate records that own the selected named values
   sourceDataValueMultipliers?: Record<string, number>; // Reviewed display normalization for selected values
@@ -240,6 +241,10 @@ type CompatibilityManifest = {
   entries: Array<{
     championId: string;
     excludeChampion?: { reason: string };
+    assetOverrides?: {
+      defaultSplash?: string;
+      defaultLoading?: string;
+    };
     variants?: Array<{
       id: string;
       label: string;
@@ -263,8 +268,12 @@ when one alternate record contains values for several forms. `sourceDataValueMul
 explicit, reviewed display conversions such as a source ratio that the tooltip presents as a percentage.
 When a form’s cast record and its named values live in different CommunityDragon records,
 `sourceDataValueSourceSpellIds` identifies the value record one-for-one with `sourceSpellIds`.
-The importer preserves package cooldowns and ranges as plural display values and strips source markup to
-plain text.
+The importer preserves package cooldowns and ranges as plural display values, resolves form-specific
+CommunityDragon spell icons when the alternate source exposes them, and strips source markup to plain
+text. An explicit `iconRef` override is available when a source record contains multiple icon states or
+the component has no alternate spell record to carry the form-specific asset. A champion-level
+`assetOverrides` entry is available when a versioned source asset corrects a stale or legacy default
+splash/loading reference without changing gameplay data.
 
 Data Dragon sometimes exposes Hwei's three subject spellbooks and Jayce's paired forms inside one
 source spell record rather than as separate IDs. The manifest selects those records and narrows only
@@ -295,7 +304,7 @@ Jayce has two draft variants under one base-champion identity:
 
 R owns the stance switch. Passive only triggers when Jayce swaps weapons, so both are unavailable in a fixed-form variant because the paired stance-switch system is omitted. A run first weights Jayce once, then selects one eligible variant; variants do not give Jayce extra probability. Jayce cannot appear again in the same run in another form.
 
-Jayce's form-specific Q/W/E values, cooldowns, and ranges are sourced from the versioned CommunityDragon game-data record. Data Dragon remains the fallback for the shared text and icon record, while the manifest supplies each form's reviewed presentation.
+Jayce's form-specific Q/W/E values, cooldowns, ranges, and icons are sourced from the versioned CommunityDragon game-data record. Data Dragon remains the fallback for shared text or any alternate asset not exposed by the source, while the manifest supplies each form's reviewed presentation.
 
 ### Elise
 
@@ -306,7 +315,7 @@ Elise has two draft variants under one base-champion identity:
 
 R owns Spider Form transformation, while Passive owns Spiderling generation and form-linked effects. Both depend on the paired original kit, so they are unavailable in a fixed-form variant. A run first weights Elise once, then selects one eligible variant; the variants do not give Elise extra probability or bypass the no-repeat rule.
 
-Human and Spider Body stats use separate reviewed form values. Human Q selects only the human values from a CommunityDragon record that also contains Spider values. Spider Q uses the source-backed QCast hit subspell, and Spider E uses the initial Rappel cast. CommunityDragon supplies the form-specific cooldowns, ranges, and named values; Data Dragon remains the text, icon, and fallback source.
+Human and Spider Body stats use separate reviewed form values. Human Q selects only the human values from a CommunityDragon record that also contains Spider values. Spider Q uses the source-backed QCast hit subspell, and Spider E uses the initial Rappel cast. CommunityDragon supplies the form-specific cooldowns, ranges, named values, and icons; Data Dragon remains the text and fallback source.
 
 ### Nidalee
 
@@ -317,7 +326,7 @@ Nidalee has two draft variants under one base-champion identity:
 
 R owns the Human/Cougar transformation, while Passive owns Prowl/Hunt marks and their cross-form bonuses. Both depend on the paired original kit, so they are unavailable in a fixed-form variant. A run weights Nidalee once, then selects one eligible variant; the variants do not give Nidalee extra probability or bypass the no-repeat rule.
 
-Human and Cougar Body stats use separate reviewed form values. Cougar Q, W, and E use their own CommunityDragon cast records for cooldowns and ranges while selecting their named damage values from AspectOfTheCougar, the source record that stores those three Cougar tooltip packages. Data Dragon remains the text, icon, and fallback source.
+Human and Cougar Body stats use separate reviewed form values. Cougar Q, W, and E use their own CommunityDragon cast records for cooldowns, ranges, and icons while selecting their named damage values from AspectOfTheCougar, the source record that stores those three Cougar tooltip packages. Data Dragon remains the text and fallback source.
 
 ### Gnar
 
@@ -328,7 +337,55 @@ Gnar has two draft variants under one base-champion identity:
 
 Mini R is unavailable because GNAR! can only be cast while Gnar is in Mega Form. Mega R is available because it is Mega's active attack, not the transformation itself. Passive is unavailable for both variants because Rage Gene owns the shared Rage resource and the Mini/Mega transformation lifecycle. A run weights Gnar once, then selects one eligible variant; the variants do not give Gnar extra probability or bypass the no-repeat rule.
 
-Mini and Mega Body carry their form-local attack types and ranges. The source-defined level-scaling Mini movement, attack-speed, and attack-range bonuses and Mega health, armor, magic-resistance, and attack-damage bonuses remain attached to the selected Body variant rather than reintroducing Rage or transformation state. Mega Q/W/E use the separate GnarBig cast records where available and select named values from the shared Gnar Q/W/E records when CommunityDragon stores those values there.
+Mini and Mega Body carry their form-local attack types and ranges. The source-defined level-scaling Mini movement, attack-speed, and attack-range bonuses and Mega health, armor, magic-resistance, and attack-damage bonuses remain attached to the selected Body variant rather than reintroducing Rage or transformation state. Mega Q/W/E use the separate GnarBig cast records where available and select named values from the shared Gnar Q/W/E records when CommunityDragon stores those values there. The form-specific Q/W/E and R icons use the corresponding CommunityDragon assets; Mini R uses the source's grey unavailable-state icon.
+
+### Xayah
+
+Xayah remains one default-kit variant. Body, Q, W, R, and Passive retain meaningful standalone actions, but E (Bladecaller) is unavailable. Feather Recall has no input when separated from Xayah’s original kit, so the component fails the portability test for its meaningful damage and root. It follows the existing unavailable-component path; Xayah is not excluded.
+
+### Yorick
+
+Yorick remains one default-kit variant. Body, Q, W, E, and R retain meaningful standalone actions, but Passive (Shepherd of Souls) is unavailable. Its grave and Mist Walker behaviour has no portable lifecycle when separated from Yorick’s original kit, so it follows the existing unavailable-component path. Yorick is not excluded.
+
+### Standalone portability audit
+
+A second pass over the pinned 16.17.1 roster found these additional components whose only
+meaningful action requires a named state, target, or ability from the same champion’s omitted kit.
+The audit also records one reviewed conditional exception where a narrow normalization preserves a
+meaningful standalone action:
+
+| Champion | Component treatment | Missing original-kit input or normalization |
+| --- | --- | --- |
+| Azir | Q, E | Sand Soldiers from W |
+| Aurelion Sol | Passive | Stardust only upgrades Aurelion Sol’s other abilities |
+| Heimerdinger | R | An omitted Q, W, or E to upgrade |
+| Illaoi | Passive | Tentacle targets and interactions from the original kit |
+| Kalista | R | The Oathsworn ally relationship |
+| Karma | Passive, R | Mantra’s cooldown target and Q/W/E bonus effects |
+| LeBlanc | R | An omitted Q, W, or E spell to mimic |
+| Mel | R | Overwhelm marks from Passive |
+| Pantheon | Passive | An omitted Pantheon spell to empower |
+| Renekton | Passive | An omitted ability to consume Fury |
+| Riven | Passive | Charges supplied by Riven’s abilities |
+| Rumble | Passive | Heat supplied by Rumble’s spells |
+| Sejuani | E | Maximum Frost stacks from the original kit |
+| Smolder | Passive | An omitted basic ability to receive Dragon Practice upgrades |
+| Syndra | Passive | The ability-specific Splinters of Wrath upgrades |
+| Twitch | E | Deadly Venom stacks from Passive or W |
+| Viktor | Passive | An omitted active ability to augment |
+| Yunara | R | An omitted basic ability to upgrade |
+| Zilean | W (conditional exception) | Rewind reduces the composite champion’s other basic ability cooldowns |
+| Zyra | Passive | Q or E to turn seeds into plants |
+
+This audit does not disable ordinary synergies that still have an independent effect, such as a
+passive that reacts to a generic attack or spell, an ability with a direct base action plus an
+optional combo bonus, or a temporary state owned and consumed within the same component. It also
+does not treat ordinary ally, terrain, monster, or item interactions as missing same-champion kit
+slots.
+
+Zilean W is the sole reviewed conditional exception in this audit: the player-facing effect remains
+cooldown reduction, normalized to the composite champion’s other basic abilities when Zilean’s own
+Q and E are omitted.
 
 ### Transformation and state audit
 
@@ -346,13 +403,35 @@ The reviewed outcomes are:
 | Elise | Human and Spider variants; R owns the switch and Passive is unavailable in both. |
 | Nidalee | Human and Cougar variants; R owns the switch and Passive is unavailable in both. |
 | Gnar | Mini and Mega variants; Passive is unavailable in both; R is unavailable on Mini and available on Mega. |
-| Kayn | Rhaast and Shadow Assassin variants; the permanent Passive choice is resolved by the variant, form-local Q/W/E/R values are carried, and temporary Umbral Trespass remains available. |
+| Xayah | One default-kit variant; E is unavailable because Feather Recall requires state from Xayah’s original kit. |
+| Kayn | Rhaast and Shadow Assassin variants; the permanent Passive choice is resolved by the variant, form-local Q/W/E/R values and icons are carried, and temporary Umbral Trespass remains available. |
 | Kled | One coherent Mounted variant; Passive is unavailable and Q is narrowed to Bear Trap on a Rope. Dismounted Kled is not offered until its complete Body and kit can be represented without guessed values. |
 | Shyvana | One normal Dragon-cycle variant; R owns Fury and temporary Dragon Form, while Passive remains available because Scalemail only stacks armor and magic resistance. No permanently weaker Human or permanently locked Dragon roll is created. |
 | Rek'Sai | One normal Burrow-cycle variant; W owns Burrow/Un-burrow, Q and E own their alternate casts, Passive owns Fury and its Burrowed healing consumer, and R remains independent. |
 | Rell | One normal variant; W owns the temporary mounted/dismounted package and Passive remains independent. |
 | Bel'Veth, K'Sante, Aatrox, Renekton, Swain | One normal variant; each R owns a temporary active transformation or steroid without creating a second selectable kit. |
 | Viego | One default-kit variant; Passive is unavailable because possession can replace Body, basic abilities, items, and Ultimate with arbitrary champion content. |
+| Yorick | One default-kit variant; Passive is unavailable because its grave and Mist Walker system requires Yorick’s original kit. |
+| Azir | One default-kit variant; Q and E are unavailable because both require Sand Soldiers from the original kit. |
+| Aurelion Sol | One default-kit variant; Passive is unavailable because Stardust only upgrades the omitted Aurelion Sol abilities. |
+| Heimerdinger | One default-kit variant; R is unavailable because it only upgrades an omitted basic ability. |
+| Illaoi | One default-kit variant; Passive is unavailable because its Tentacles have no portable targets without the original kit. |
+| Kalista | One default-kit variant; R is unavailable because Fate’s Call requires the original-kit Oathsworn relationship. |
+| Karma | One default-kit variant; Passive and R are unavailable because they only operate the omitted Mantra/Q/W/E loop. |
+| LeBlanc | One default-kit variant; R is unavailable because Mimic only repeats an omitted basic spell. |
+| Mel | One default-kit variant; R is unavailable because Golden Eclipse requires Overwhelm marks from Passive. |
+| Pantheon | One default-kit variant; Passive is unavailable because Mortal Will only empowers the omitted Pantheon spell kit. |
+| Renekton | One default-kit variant; Passive is unavailable because Fury has no consumer without the omitted abilities. |
+| Riven | One default-kit variant; Passive is unavailable because Runic Blade needs charges from omitted Riven abilities. |
+| Rumble | One default-kit variant; Passive is unavailable because Heat has no portable source without Rumble’s spells. |
+| Sejuani | One default-kit variant; E is unavailable because Permafrost requires maximum Frost stacks from the original kit. |
+| Smolder | One default-kit variant; Passive is unavailable because Dragon Practice only upgrades omitted basic abilities. |
+| Syndra | One default-kit variant; Passive is unavailable because Transcendent only upgrades omitted named abilities. |
+| Twitch | One default-kit variant; E is unavailable because Contaminate requires Deadly Venom stacks from the original kit. |
+| Viktor | One default-kit variant; Passive is unavailable because Glorious Evolution only augments omitted abilities. |
+| Yunara | One default-kit variant; R is unavailable because Transcend One’s Self only upgrades omitted basic abilities. |
+| Zilean | One default-kit variant; W remains selectable under a reviewed normalization that applies Rewind to the composite champion’s other basic abilities. |
+| Zyra | One default-kit variant; Passive is unavailable because Garden of Thorns needs omitted Q or E consumers. |
 | Udyr | One normal variant; Passive owns stance recasts and awakenings inside the four ability slots, not a separate Body form. |
 | Kayle | One normal variant; Passive owns level-based ascension and attack progression, not a separately rolled form. |
 | Aphelios | Excluded; weapons, ammunition, range, Q, and Passive progression remain one inseparable system. |
@@ -364,7 +443,7 @@ in their ordinary champion variant. They alter an ability's own state or provide
 but do not create a second Body or replace a different selectable slot. This is an audit boundary,
 not an assumption that every source description containing the word “form” needs a new roll.
 
-Kayn, Kled, Rek'Sai, Shyvana, and Viego have explicit compatibility-manifest entries and regression
+The audited exception champions have explicit compatibility-manifest entries and regression
 coverage. The remaining normal-variant outcomes are recorded here because the portability test
 passes without a data override.
 

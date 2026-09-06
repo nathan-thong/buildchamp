@@ -8,6 +8,7 @@ describe('pinned champion snapshot', () => {
     const validated = validateChampionSnapshot(snapshot);
     const jayce = validated.champions.find((champion) => champion.id === 'jayce');
     const hwei = validated.champions.find((champion) => champion.id === 'hwei');
+    const fiddlesticks = validated.champions.find((champion) => champion.id === 'fiddlesticks');
     const elise = validated.champions.find((champion) => champion.id === 'elise');
     const nidalee = validated.champions.find((champion) => champion.id === 'nidalee');
     const gnar = validated.champions.find((champion) => champion.id === 'gnar');
@@ -16,11 +17,20 @@ describe('pinned champion snapshot', () => {
     const kled = validated.champions.find((champion) => champion.id === 'kled');
     const kayn = validated.champions.find((champion) => champion.id === 'kayn');
     const viego = validated.champions.find((champion) => champion.id === 'viego');
+    const xayah = validated.champions.find((champion) => champion.id === 'xayah');
+    const yorick = validated.champions.find((champion) => champion.id === 'yorick');
+    const zilean = validated.champions.find((champion) => champion.id === 'zilean');
 
     expect(validated.dataDragonVersion).toBe('16.17.1');
     expect(validated.locale).toBe('en_US');
     expect(validated.champions).toHaveLength(173);
     expect(validated.indexes.excludedChampionIds).toEqual(['aphelios']);
+    expect(fiddlesticks?.assetRefs.defaultSplash).toBe(
+      'https://raw.communitydragon.org/16.17/plugins/rcp-be-lol-game-data/global/default/assets/characters/fiddlesticks/skins/base/images/fiddlesticks_splash_uncentered_0.jpg',
+    );
+    expect(fiddlesticks?.assetRefs.defaultLoading).toBe(
+      'https://raw.communitydragon.org/16.17/plugins/rcp-be-lol-game-data/global/default/assets/characters/fiddlesticks/skins/base/fiddlesticksloadscreen.jpg',
+    );
     expect(jayce?.variants.map((variant) => variant.id)).toEqual(['jayce-hammer', 'jayce-cannon']);
     expect(jayce?.variants[0]?.components.body.bodyStats).toMatchObject({
       attackRange: 125,
@@ -146,6 +156,18 @@ describe('pinned champion snapshot', () => {
       label: 'Mega Damage',
       values: [80, 115, 150, 185, 220, 255],
     });
+    expect(gnar?.variants[0]?.components.q.iconRef).toBe(
+      'https://raw.communitydragon.org/16.17/game/assets/characters/gnar/hud/icons2d/gnar_q.png',
+    );
+    expect(gnar?.variants[1]?.components.q.iconRef).toBe(
+      'https://raw.communitydragon.org/16.17/game/assets/characters/gnar/hud/icons2d/gnarbig_q.png',
+    );
+    expect(gnar?.variants[0]?.components.r.iconRef).toBe(
+      'https://raw.communitydragon.org/16.17/game/assets/characters/gnar/hud/icons2d/gnar_r_grey.png',
+    );
+    expect(gnar?.variants[1]?.components.r.iconRef).toBe(
+      'https://raw.communitydragon.org/16.17/game/assets/characters/gnar/hud/icons2d/gnarbig_r.png',
+    );
     expect(gnar?.variants[0]?.components.r.availability.status).toBe('unavailable');
     expect(gnar?.variants[1]?.components.r.availability.status).toBe('available');
     expect(
@@ -179,5 +201,86 @@ describe('pinned champion snapshot', () => {
     );
     expect(viego?.variants.map((variant) => variant.id)).toEqual(['viego-default']);
     expect(viego?.variants[0]?.components.passive.availability.status).toBe('unavailable');
+    expect(xayah?.variants[0]?.components.e.availability).toEqual({
+      status: 'unavailable',
+      reasonCode: 'requires-original-kit',
+      summary: 'Feather Recall requires Feathers supplied by Xayah’s original kit.',
+    });
+    expect(yorick?.variants[0]?.components.passive.availability).toEqual({
+      status: 'unavailable',
+      reasonCode: 'requires-original-kit',
+      summary: 'Shepherd of Souls requires Yorick’s original grave and Mist Walker system.',
+    });
+    expect(zilean?.variants[0]?.components.w.availability).toEqual({
+      status: 'conditional',
+      ruleId: 'zilean-rewind-composite-basic-abilities',
+      summary: 'Reduces the cooldowns of the composite champion’s other basic abilities.',
+    });
+    expect(zilean?.variants[0]?.components.w.dependencies).toEqual([]);
+
+    const secondPassExceptions = [
+      ['azir', 'q'],
+      ['azir', 'e'],
+      ['aurelion-sol', 'passive'],
+      ['heimerdinger', 'r'],
+      ['illaoi', 'passive'],
+      ['kalista', 'r'],
+      ['karma', 'passive'],
+      ['karma', 'r'],
+      ['leblanc', 'r'],
+      ['mel', 'r'],
+      ['pantheon', 'passive'],
+      ['renekton', 'passive'],
+      ['riven', 'passive'],
+      ['rumble', 'passive'],
+      ['sejuani', 'e'],
+      ['smolder', 'passive'],
+      ['syndra', 'passive'],
+      ['twitch', 'e'],
+      ['viktor', 'passive'],
+      ['yunara', 'r'],
+      ['zyra', 'passive'],
+    ] as const;
+
+    for (const [championId, slot] of secondPassExceptions) {
+      const component = validated.champions.find((champion) => champion.id === championId)
+        ?.variants[0]?.components[slot];
+
+      expect(component?.availability.status, `${championId}/${slot}`).toBe('unavailable');
+      expect(component?.availability.reasonCode, `${championId}/${slot}`).toBe(
+        'requires-original-kit',
+      );
+      expect(component?.dependencies, `${championId}/${slot}`).toEqual([]);
+    }
+
+    const unresolvedTemplates = validated.champions.flatMap((champion) =>
+      champion.variants.flatMap((variant) =>
+        Object.values(variant.components).flatMap((component) =>
+          [
+            component.shortDescription,
+            component.fullDescription,
+            ...component.values.flatMap((value) => value.values),
+          ]
+            .filter((item): item is string => typeof item === 'string' && item.includes('{{'))
+            .map((item) => `${champion.id}/${variant.id}/${component.slot}: ${item}`),
+        ),
+      ),
+    );
+
+    expect(unresolvedTemplates).toEqual([]);
+    expect(
+      validated.champions
+        .filter((champion) => champion.id !== 'fiddlesticks')
+        .every((champion) =>
+          champion.assetRefs.defaultSplash.includes('/cdn/img/champion/splash/'),
+        ),
+    ).toBe(true);
+    expect(
+      validated.champions
+        .filter((champion) => champion.id !== 'fiddlesticks')
+        .every((champion) =>
+          champion.assetRefs.defaultLoading.includes('/cdn/img/champion/loading/'),
+        ),
+    ).toBe(true);
   });
 });
