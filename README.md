@@ -6,13 +6,14 @@ Each run gives you six champion reveals. For each one, permanently claim one rem
 
 ## Project Status
 
-Slice 4, Solo Gameplay, is implemented. The repository now contains a validated English Data
-Dragon 16.17.1 snapshot, deterministic source/cache/normalize/emit stages, reviewed champion
-compatibility entries covering shared systems and transformed states, a generated patch report, and
-a pure deterministic engine with adaptive legal-path checking. The `/solo` route now runs a complete,
-untimed six-round draft with irreversible locks, snapshot-backed artwork and ability details, local
-active-run recovery, a final reveal, and a fresh rematch. The home board and `/build/demo` remain
-clearly labelled foundation/demo fixtures. See
+Slice 5, Recovery, Sound, and Accessibility, is in progress. The repository contains a validated
+English Data Dragon 16.17.1 snapshot, deterministic source/cache/normalize/emit stages, reviewed
+champion compatibility entries covering shared systems and transformed states, a generated patch
+report, and a pure deterministic engine with adaptive legal-path checking. The `/solo` route runs a
+complete, untimed six-round draft with irreversible locks, snapshot-backed artwork and ability
+details, validated active-run recovery with storage-failure feedback, restrained interaction audio
+after first interaction, persistent mute, a final reveal, and a fresh rematch. The home board and
+`/build/demo` remain clearly labelled foundation/demo fixtures. See
 [CURRENT_STATE.md](./CURRENT_STATE.md) for the concise, maintained implementation handoff.
 
 The plan is:

@@ -35,6 +35,32 @@ class MemoryStorage implements Storage {
   }
 }
 
+class FailingStorage implements Storage {
+  get length(): number {
+    return 0;
+  }
+
+  clear(): void {
+    // Nothing to clear.
+  }
+
+  getItem(): string | null {
+    return null;
+  }
+
+  key(): string | null {
+    return null;
+  }
+
+  removeItem(): void {
+    // Nothing to remove.
+  }
+
+  setItem(): void {
+    throw new Error('storage unavailable');
+  }
+}
+
 const SLOT_LABELS = {
   body: 'Body',
   q: 'Q',
@@ -147,6 +173,30 @@ describe('solo gameplay', () => {
 
     expect(screen.getByRole('listitem', { name: /q slot, locked/i })).toBeInTheDocument();
     expect(document.querySelector('.round-counter')).toHaveAccessibleName('Round 2 of six');
+    expect(screen.getByRole('status')).toHaveTextContent(/draft restored/i);
+  });
+
+  it('keeps the draft playable and explains when recovery storage is unavailable', async () => {
+    const user = userEvent.setup();
+    render(
+      <SoloDraftPage
+        random={createSeededRandom(12)}
+        snapshot={NORMAL_DRAFT_FIXTURE}
+        storage={new FailingStorage()}
+      />,
+    );
+
+    expect(screen.getByText(/could not save recovery/i)).toBeInTheDocument();
+
+    const choice = firstChoice();
+    const draftSlot = choice.dataset.choiceSlot as keyof typeof SLOT_LABELS;
+    await user.click(choice);
+    await user.click(
+      screen.getByRole('button', { name: `Lock ${SLOT_LABELS[draftSlot]} permanently` }),
+    );
+
+    expect(screen.getByRole('heading', { name: 'Choose one part to keep.' })).toBeInTheDocument();
+    expect(screen.getByText(/could not save recovery/i)).toBeInTheDocument();
   });
 
   it('guards rapid repeated lock activation and commits only once', () => {

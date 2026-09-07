@@ -56,7 +56,7 @@ describe('solo run storage boundary', () => {
       throw new Error('The fixture should not complete after one lock.');
     }
 
-    writeSoloRun(state, storage);
+    expect(writeSoloRun(state, storage)).toBe(true);
     const restored = readSoloRun(NORMAL_DRAFT_FIXTURE, storage);
 
     expect(restored?.round).toBe(state.round);
@@ -95,5 +95,24 @@ describe('solo run storage boundary', () => {
     clearSoloRun(storage);
 
     expect(storage.getItem(SOLO_RUN_STORAGE_KEY)).toBeNull();
+  });
+
+  it('reports storage failures without interrupting the active run', () => {
+    const failingStorage: Storage = {
+      get length() {
+        return 0;
+      },
+      clear: () => undefined,
+      getItem: () => null,
+      key: () => null,
+      removeItem: () => undefined,
+      setItem: () => {
+        throw new Error('storage unavailable');
+      },
+    };
+    const state = createRun(NORMAL_DRAFT_FIXTURE, createSeededRandom(8));
+
+    expect(writeSoloRun(state, failingStorage)).toBe(false);
+    expect(() => clearSoloRun(failingStorage)).not.toThrow();
   });
 });

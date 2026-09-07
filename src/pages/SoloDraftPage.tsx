@@ -25,6 +25,7 @@ import {
   readSoloRun,
   writeSoloRun,
 } from '../lib/solo-run-storage';
+import { useSound } from '../lib/sound';
 
 type SoloDraftPageProps = {
   readonly snapshot?: ChampionSnapshot;
@@ -52,24 +53,50 @@ export function SoloDraftPage({
   const shouldFocusOfferHeadingRef = useRef(false);
   const lockInProgressRef = useRef(false);
   const committedLockKeyRef = useRef<string | null>(null);
+  const revealSoundTimerRef = useRef<number | null>(null);
+  const didRecoverRunRef = useRef(false);
+  const sound = useSound();
   const [run, setRun] = useState<RunState>(() => {
     const recovered = readSoloRun(snapshot, storageRef.current);
-    return recovered ?? createRun(snapshot, randomRef.current);
+    if (recovered) {
+      didRecoverRunRef.current = true;
+      return recovered;
+    }
+
+    return createRun(snapshot, randomRef.current);
   });
   const [selectedSelection, setSelectedSelection] = useState<Selection | null>(null);
   const [expandedSlot, setExpandedSlot] = useState<DraftSlot | null>(null);
   const [expandedBuildSlot, setExpandedBuildSlot] = useState<DraftSlot | null>(null);
   const [lockError, setLockError] = useState<string | null>(null);
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
   const [isLocking, setIsLocking] = useState(false);
-  const [announcement, setAnnouncement] = useState('Choose one part to keep.');
+  const [announcement, setAnnouncement] = useState(
+    didRecoverRunRef.current
+      ? 'Draft restored. Your locked choices remain permanent.'
+      : 'Choose one part to keep.',
+  );
 
   useEffect(() => {
     if (run.status === 'drafting') {
-      writeSoloRun(run, storageRef.current);
+      if (!writeSoloRun(run, storageRef.current)) {
+        setStorageWarning(
+          'This browser could not save recovery. You can keep playing here, but refreshing may lose this run.',
+        );
+      }
     } else {
       clearSoloRun(storageRef.current);
+      setStorageWarning(null);
     }
   }, [run]);
+
+  useEffect(() => {
+    return () => {
+      if (revealSoundTimerRef.current !== null) {
+        window.clearTimeout(revealSoundTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (run.status !== 'drafting' || !shouldFocusOfferHeadingRef.current) {
@@ -93,6 +120,7 @@ export function SoloDraftPage({
           setExpandedSlot(null);
           setExpandedBuildSlot(null);
           setLockError(null);
+          setStorageWarning(null);
           setAnnouncement('Fresh run started. Choose one open component.');
         }}
       />
@@ -114,6 +142,8 @@ export function SoloDraftPage({
       return;
     }
 
+    sound.unlock();
+
     try {
       const selection = selectionForSlot(run.offer, slot);
       setSelectedSelection(selection);
@@ -133,6 +163,8 @@ export function SoloDraftPage({
       return;
     }
 
+    sound.unlock();
+
     const lockKey = `${run.round}:${selectedSelection.offerId}:${selectedSelection.slot}:${selectedSelection.componentId}`;
     if (committedLockKeyRef.current === lockKey) {
       return;
@@ -145,6 +177,11 @@ export function SoloDraftPage({
 
     try {
       const nextRun = lockSelection(snapshot, run, selectedSelection, randomRef.current);
+      const recoverySaved =
+        nextRun.status === 'drafting' ? writeSoloRun(nextRun, storageRef.current) : true;
+      if (nextRun.status === 'complete') {
+        clearSoloRun(storageRef.current);
+      }
       setRun(nextRun);
       setSelectedSelection(null);
       setExpandedSlot(null);
@@ -153,11 +190,22 @@ export function SoloDraftPage({
       if (nextRun.status === 'drafting') {
         shouldFocusOfferHeadingRef.current = true;
       }
-      setAnnouncement(
-        nextRun.status === 'complete'
-          ? 'Draft complete. Your composite champion is ready to inspect.'
-          : `${lockedSlotLabel} locked permanently. New offer: ${nextRun.offer.champion.name}. Round ${currentRound(nextRun)} of six. Choose another open component.`,
+      setStorageWarning(
+        recoverySaved
+          ? null
+          : 'This browser could not save recovery. You can keep playing here, but refreshing may lose this run.',
       );
+      if (nextRun.status === 'complete') {
+        clearRevealSoundTimer();
+        sound.play('complete');
+        setAnnouncement('Draft complete. Your composite champion is ready to inspect.');
+      } else {
+        sound.play('lock');
+        queueRevealSound();
+        setAnnouncement(
+          `${lockedSlotLabel} locked permanently. New offer: ${nextRun.offer.champion.name}. Round ${currentRound(nextRun)} of six. Choose another open component.`,
+        );
+      }
     } catch {
       committedLockKeyRef.current = null;
       setLockError('That lock could not be completed. Your selection is still available.');
@@ -174,6 +222,24 @@ export function SoloDraftPage({
 
   function handleToggleBuildDetails(slot: DraftSlot) {
     setExpandedBuildSlot((currentSlot) => (currentSlot === slot ? null : slot));
+  }
+
+  function queueRevealSound() {
+    clearRevealSoundTimer();
+
+    revealSoundTimerRef.current = window.setTimeout(() => {
+      revealSoundTimerRef.current = null;
+      sound.play('reveal');
+    }, 180);
+  }
+
+  function clearRevealSoundTimer() {
+    if (revealSoundTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(revealSoundTimerRef.current);
+    revealSoundTimerRef.current = null;
   }
 
   return (
@@ -291,6 +357,11 @@ export function SoloDraftPage({
               {lockError && (
                 <p className="lock-bar__error" role="alert">
                   {lockError}
+                </p>
+              )}
+              {storageWarning && (
+                <p className="lock-bar__warning" role="status">
+                  {storageWarning}
                 </p>
               )}
             </div>

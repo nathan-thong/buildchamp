@@ -95,17 +95,19 @@ export function readSoloRun(
 export function writeSoloRun(
   state: DraftingRunState,
   storage: Storage | undefined = getSoloRunStorage(),
-): void {
+): boolean {
   if (!storage) {
-    return;
+    return false;
   }
 
   try {
     const persisted: PersistedDraftingRun = serializeDraftingRun(state);
     const validated = PersistedDraftingRunSchema.parse(persisted);
     storage.setItem(SOLO_RUN_STORAGE_KEY, JSON.stringify(validated));
+    return true;
   } catch {
     // Storage failures must not stop a player from continuing the run.
+    return false;
   }
 }
 
