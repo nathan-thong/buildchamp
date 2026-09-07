@@ -18,7 +18,7 @@ Last updated: 2026-09-07
 ## Verified Repository State
 
 - The validated 16.17.1 snapshot contains 173 champions, 172 eligible; Aphelios is excluded. Reviewed data coverage includes variants, Fiddlesticks artwork, Xayah E, Yorick Passive, the portability audit, and conditional Zilean W.
-- Slice 4, the dependency refresh, and the UI/UX refinement are committed on `main`; the Slice 5 work is currently uncommitted on `main`, and no deployment exists for this work.
+- Slice 4, the dependency refresh, the UI/UX refinement, and the Slice 5 recovery/audio work are committed on `main`, which tracks `origin/main`; no deployment exists for this work.
 - Verified with `CI=true pnpm typecheck`, `CI=true pnpm test` (15 files, 67 tests), `CI=true pnpm lint`, `CI=true pnpm format`, `CI=true pnpm build`, and `CI=true pnpm test:e2e` (12 browser journeys). Responsive review covered 320, 390, 768, 1280, and 1440px plus 200% zoom behavior, including the fixed details dialog and aligned option, completion-card, and home slot rows.
 - The browser validates the bundled snapshot at startup and requests no mutable champion data at gameplay runtime. No deployment exists.
 
