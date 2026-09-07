@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-06T17:51:29+10:00",
+  "generatedAt": "2026-09-07T22:00:20+10:00",
   "title": "Design System: BuildChamp",
   "extensions": {
     "colorMeta": {
@@ -88,9 +88,29 @@
         "displayName": "Neutral Display Grotesk",
         "purpose": "Home, draft, and result route headings; scale and weight carry emphasis."
       },
+      "headline": {
+        "displayName": "Route Headline Grotesk",
+        "purpose": "Draft and result route identity; large enough to orient the next decision."
+      },
       "body": {
         "displayName": "Open Humanist Sans",
         "purpose": "Instructions, state explanations, and practical interface copy."
+      },
+      "description": {
+        "displayName": "Supporting Sans",
+        "purpose": "Ability summaries, component details, and recovery explanations."
+      },
+      "label": {
+        "displayName": "Action Label Sans",
+        "purpose": "Short slot, state, and action labels that need a compact uppercase rhythm."
+      },
+      "meta": {
+        "displayName": "Measurement Mono",
+        "purpose": "Patch, round, slot, state, and other secondary metadata."
+      },
+      "cardTitle": {
+        "displayName": "Card Title Grotesk",
+        "purpose": "Champion and component names; names wrap instead of disappearing."
       },
       "mono": {
         "displayName": "Measurement Mono",
@@ -116,20 +136,41 @@
     ],
     "motion": [
       {
-        "name": "ease-standard",
-        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
-        "purpose": "Short hover and state transitions."
+        "name": "fast",
+        "value": "140ms",
+        "purpose": "Button, slot, navigation, and disclosure state changes."
       },
       {
-        "name": "reveal",
-        "value": "520ms",
-        "purpose": "Reserved for a deliberate reveal moment."
+        "name": "standard",
+        "value": "240ms",
+        "purpose": "Longer interface transitions where a little settling improves orientation."
+      },
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Short lifts and state transitions."
+      },
+      {
+        "name": "home-splash",
+        "value": "360ms",
+        "purpose": "The home board artwork entering the first viewport."
+      },
+      {
+        "name": "slot-icon",
+        "value": "260ms",
+        "purpose": "A newly loaded slot icon settling into the six-slot rail."
+      },
+      {
+        "name": "loading-pulse",
+        "value": "1.2s",
+        "purpose": "The repeated visual loading cue; never the only state signal."
       }
     ],
     "breakpoints": [
       { "name": "wide", "value": "1120px" },
-      { "name": "stack", "value": "820px" },
-      { "name": "narrow", "value": "640px" }
+      { "name": "stack", "value": "960px" },
+      { "name": "narrow", "value": "640px" },
+      { "name": "micro", "value": "400px" }
     ]
   },
   "components": [
@@ -172,6 +213,38 @@
       "description": "Quiet routes with an active gold trim.",
       "html": "<nav class=\"ds-site-nav\"><a href=\"/solo\">SOLO DRAFT</a></nav>",
       "css": ".ds-site-nav { display: flex; gap: .35rem; } .ds-site-nav a { padding: .8rem 1rem; border: 1px solid transparent; color: #7f91a4; font: 700 .68rem/1 'SFMono-Regular', monospace; letter-spacing: .08em; text-decoration: none; text-transform: uppercase; } .ds-site-nav a:hover, .ds-site-nav a:focus-visible { border-color: rgba(240,230,210,.32); color: #e7c982; box-shadow: inset 0 -2px 0 #e7c982; } .ds-site-nav a:focus-visible { outline: 3px solid #e7c982; outline-offset: 4px; }"
+    },
+    {
+      "name": "Component Choice Card",
+      "kind": "card",
+      "refersTo": "component-card",
+      "description": "A source-tied choice with visible metrics, availability state, and a full-details disclosure.",
+      "html": "<article class=\"ds-component-card ds-component-card--selected\"><button class=\"ds-component-card__select\" aria-pressed=\"true\" type=\"button\"><span class=\"ds-component-card__topline\">02 / Q <span>SELECTED</span></span><strong>Example Component</strong><p>Portable, selected choice.</p></button><button class=\"ds-component-card__details-toggle\" type=\"button\">FULL DETAILS</button></article>",
+      "css": ".ds-component-card { display: flex; min-width: 0; flex-direction: column; border: 1px solid rgba(200,170,110,.42); border-radius: 0; color: #f0e6d2; background: #0d1825; } .ds-component-card--selected { border-color: #e7c982; background: rgba(200,170,110,.1); } .ds-component-card__select { display: flex; width: 100%; flex: 1; flex-direction: column; align-items: flex-start; gap: .75rem; padding: .9rem; border: 0; color: inherit; background: transparent; cursor: pointer; font: inherit; text-align: left; } .ds-component-card__select:hover { background: rgba(200,170,110,.1); } .ds-component-card__topline { display: flex; width: 100%; justify-content: space-between; color: #7f91a4; font: 700 .6875rem/1 'SFMono-Regular', monospace; letter-spacing: .05em; text-transform: uppercase; } .ds-component-card__topline span { color: #e7c982; } .ds-component-card__select strong { font: 700 1.125rem/1.05 'Helvetica Neue', sans-serif; letter-spacing: .02em; text-transform: uppercase; } .ds-component-card__select p { margin: 0; color: #c1bdaf; font: .875rem/1.5 'Avenir Next', sans-serif; } .ds-component-card__details-toggle { min-height: 2.75rem; padding: .7rem .85rem; border: 0; border-top: 1px solid rgba(240,230,210,.15); color: #0ac8b9; background: transparent; cursor: pointer; font: 700 .6875rem/1 'SFMono-Regular', monospace; letter-spacing: .07em; text-align: left; text-transform: uppercase; } .ds-component-card__details-toggle:hover, .ds-component-card__details-toggle:focus-visible { color: #e7c982; background: rgba(200,170,110,.08); } .ds-component-card__select:focus-visible, .ds-component-card__details-toggle:focus-visible { outline: 3px solid #0ac8b9; outline-offset: -3px; }"
+    },
+    {
+      "name": "Completion Hero",
+      "kind": "custom",
+      "refersTo": "completion-hero",
+      "description": "The finished-build reveal: champion artwork, one plain-language identity statement, and pinned snapshot metadata.",
+      "html": "<section class=\"ds-completion-hero\"><div class=\"ds-completion-hero__art\"></div><div class=\"ds-completion-hero__copy\"><span>SHARED RESULT</span><h2>YOUR COMPOSITE CHAMPION</h2><p>Body artwork leads the reveal while the five remaining slots stay inspectable below.</p><div class=\"ds-completion-hero__meta\"><span>SIX SLOTS LOCKED</span><span>PATCH SNAPSHOT</span></div></div></section>",
+      "css": ".ds-completion-hero { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(20rem,.9fr); gap: clamp(1.25rem,4vw,4rem); padding: clamp(1rem,2vw,1.35rem); border: 1px solid rgba(200,170,110,.72); border-radius: .35rem; background: #0d1825; box-shadow: 0 1.5rem 3rem rgba(0,0,0,.28); } .ds-completion-hero__art { min-height: 18rem; border: 1px solid rgba(240,230,210,.15); background: #13283b; } .ds-completion-hero__copy { align-self: center; padding: 1rem 0; } .ds-completion-hero__copy > span, .ds-completion-hero__meta { color: #7f91a4; font: 700 .6875rem/1.3 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; } .ds-completion-hero__copy h2 { max-width: 8ch; margin: .5rem 0 0; color: #f0e6d2; font: 700 clamp(3.3rem,6vw,6.5rem)/.82 'Helvetica Neue', sans-serif; letter-spacing: -.07em; text-transform: uppercase; } .ds-completion-hero__copy p { max-width: 31rem; margin: 1.5rem 0 0; color: #c1bdaf; font: .875rem/1.65 'Avenir Next', sans-serif; } .ds-completion-hero__meta { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; margin-top: 2rem; } .ds-completion-hero__meta span::before { display: inline-block; width: .45rem; height: .45rem; margin-right: .45rem; border: 1px solid #0ac8b9; border-radius: 50%; content: ''; }"
+    },
+    {
+      "name": "Share Result Actions",
+      "kind": "custom",
+      "refersTo": "result-actions",
+      "description": "A compact, explicit handoff from a finished build to copying or sharing its stable result link.",
+      "html": "<div class=\"ds-share-actions\"><div class=\"ds-share-actions__buttons\"><button class=\"ds-share-button\" type=\"button\">COPY RESULT LINK</button><button class=\"ds-share-button\" type=\"button\">SHARE RESULT</button></div><p role=\"status\">Link copied. Share it with anyone who wants to judge the build.</p></div>",
+      "css": ".ds-share-actions { display: flex; min-width: min(100%,14rem); flex-direction: column; align-items: flex-end; gap: .45rem; } .ds-share-actions__buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .65rem; } .ds-share-button { min-height: 2.8rem; padding: .75rem 1rem; border: 1px solid rgba(240,230,210,.32); border-radius: .25rem; color: #f0e6d2; background: transparent; cursor: pointer; font: 800 .7rem/1 'Avenir Next', sans-serif; letter-spacing: .075em; text-transform: uppercase; transition: border-color 140ms ease, background 140ms ease, transform 140ms cubic-bezier(.22,1,.36,1); } .ds-share-button:hover { border-color: #0ac8b9; background: rgba(10,200,185,.09); transform: translateY(-2px); } .ds-share-button:focus-visible { outline: 3px solid #e7c982; outline-offset: 4px; } .ds-share-actions p { max-width: 24rem; margin: 0; color: #c1bdaf; font: 700 .6875rem/1.4 'SFMono-Regular', monospace; text-align: right; text-transform: uppercase; }"
+    },
+    {
+      "name": "Details Dialog",
+      "kind": "custom",
+      "refersTo": "component-details-popover",
+      "description": "A labelled, scrollable disclosure for full ability or Body details, closed by Escape, backdrop, or the explicit Close control.",
+      "html": "<dialog open class=\"ds-details-dialog\"><div class=\"ds-details-dialog__surface\"><header><div><span>FULL DETAILS</span><h2>Example Component</h2></div><button class=\"ds-details-dialog__close\" type=\"button\">CLOSE</button></header><p>Full component description and portable mechanics appear here without changing the draft.</p></div></dialog>",
+      "css": ".ds-details-dialog { width: min(calc(100vw - 2rem),46rem); max-width: calc(100vw - 2rem); max-height: calc(100vh - 2rem); padding: 0; border: 1px solid rgba(200,170,110,.42); border-top-color: #0ac8b9; color: #f0e6d2; background: #13283b; box-shadow: 0 1.5rem 3rem rgba(0,0,0,.28); overflow: hidden; } .ds-details-dialog::backdrop { background: rgba(3,8,15,.78); } .ds-details-dialog__surface { max-height: calc(100vh - 2rem); overflow-y: auto; padding: clamp(1rem,3vw,1.5rem); } .ds-details-dialog header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding-bottom: .8rem; border-bottom: 1px solid rgba(240,230,210,.15); } .ds-details-dialog header span { color: #7f91a4; font: 700 .6875rem/1.3 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; } .ds-details-dialog h2 { margin: .45rem 0 0; color: #f0e6d2; font: 700 clamp(1.5rem,4vw,2.5rem)/1 'Helvetica Neue', sans-serif; text-transform: uppercase; } .ds-details-dialog__close { min-height: 2.8rem; padding: .75rem 1rem; border: 1px solid rgba(240,230,210,.32); border-radius: .25rem; color: #f0e6d2; background: transparent; cursor: pointer; font: 800 .7rem/1 'Avenir Next', sans-serif; letter-spacing: .075em; text-transform: uppercase; } .ds-details-dialog__close:hover, .ds-details-dialog__close:focus-visible { border-color: #0ac8b9; color: #e7c982; } .ds-details-dialog p { max-width: 70ch; margin: .85rem 0 0; color: #c1bdaf; font: .875rem/1.5 'Avenir Next', sans-serif; }"
     }
   ],
   "narrative": {

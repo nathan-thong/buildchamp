@@ -58,6 +58,39 @@ test('solo lock interaction is keyboard reachable', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Lock Body permanently' })).toBeEnabled();
 });
 
+test('solo can be completed with keyboard-only input', async ({ page }) => {
+  await page.goto('/solo');
+
+  const labels = {
+    body: 'Body',
+    q: 'Q',
+    w: 'W',
+    e: 'E',
+    r: 'R',
+    passive: 'Passive',
+  } as const;
+
+  for (let lock = 0; lock < 6; lock += 1) {
+    const choice = page.locator('button[data-choice-slot]').first();
+    const draftSlot = await choice.getAttribute('data-choice-slot');
+    if (!draftSlot || !(draftSlot in labels)) {
+      throw new Error(`Unexpected draft slot ${draftSlot ?? 'missing'}.`);
+    }
+
+    const label = labels[draftSlot as keyof typeof labels];
+    await choice.focus();
+    await page.keyboard.press('Enter');
+    const lockButton = page.getByRole('button', { name: `Lock ${label} permanently` });
+    await expect(lockButton).toBeEnabled();
+    await lockButton.focus();
+    await page.keyboard.press('Enter');
+  }
+
+  const completionHeading = page.getByRole('heading', { name: 'Your composite champion' });
+  await expect(completionHeading).toBeVisible();
+  await expect(completionHeading).toBeFocused();
+});
+
 test('solo completes the six-lock snapshot-backed journey and starts a fresh rematch', async ({
   page,
 }) => {
@@ -102,6 +135,60 @@ test('solo completes the six-lock snapshot-backed journey and starts a fresh rem
     page.getByRole('heading', { level: 1, name: /choose one part to keep/i }),
   ).toBeVisible();
   await expect(page.getByLabel('Round 1 of six')).toBeVisible();
+});
+
+test('completed builds round-trip through a clean shared result URL', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (value: string) => {
+          (window as Window & { __buildChampCopied?: string }).__buildChampCopied = value;
+        },
+      },
+    });
+  });
+  await page.goto('/solo');
+
+  const labels = {
+    body: 'Body',
+    q: 'Q',
+    w: 'W',
+    e: 'E',
+    r: 'R',
+    passive: 'Passive',
+  } as const;
+
+  for (let lock = 0; lock < 6; lock += 1) {
+    const choice = page.locator('button[data-choice-slot]').first();
+    const draftSlot = await choice.getAttribute('data-choice-slot');
+    if (!draftSlot || !(draftSlot in labels)) {
+      throw new Error(`Unexpected draft slot ${draftSlot ?? 'missing'}.`);
+    }
+
+    await choice.click();
+    await page
+      .getByRole('button', { name: `Lock ${labels[draftSlot as keyof typeof labels]} permanently` })
+      .click();
+  }
+
+  await page.getByRole('button', { name: 'Copy result link' }).click();
+  const sharedUrl = await page.evaluate(
+    () => (window as Window & { __buildChampCopied?: string }).__buildChampCopied,
+  );
+
+  expect(sharedUrl).toMatch(/\/build\/v1\.[A-Za-z0-9_-]+$/);
+  if (!sharedUrl) {
+    throw new Error('The completed build did not produce a share URL.');
+  }
+
+  await page.evaluate(() => localStorage.clear());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(sharedUrl);
+  await expect(page.getByRole('heading', { name: 'Your composite champion' })).toBeVisible();
+  await expect(page.getByText('Patch 16.17.1')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Inspect each choice' })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
 });
 
 test('completed build sections use aligned frames within each grid row', async ({ page }) => {
@@ -237,6 +324,35 @@ test('full details open in a popup without changing the choice-card layout', asy
   await details.locator('.component-details-popover__close').click();
   await expect(details).toBeHidden();
   await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('details dialogs preserve focus and reduced motion keeps state changes legible', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/solo');
+
+  const disclosure = page.getByRole('button', { name: /full details for/i }).first();
+  await disclosure.focus();
+  await page.keyboard.press('Enter');
+
+  const dialog = page.getByRole('dialog', { name: /details for/i });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /close details for/i })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(disclosure).toBeFocused();
+
+  const reducedMotion = await page.evaluate(
+    () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
+  const cardTransition = await page
+    .locator('.component-card')
+    .first()
+    .evaluate((element) => getComputedStyle(element).transitionDuration);
+
+  expect(reducedMotion).toBe(true);
+  expect(Number.parseFloat(cardTransition)).toBeLessThanOrEqual(0.001);
+  await expect(page.getByText('6 slots open')).toBeVisible();
 });
 
 test('your options cards use aligned frames within each grid row', async ({ page }) => {

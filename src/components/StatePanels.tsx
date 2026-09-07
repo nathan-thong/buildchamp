@@ -52,7 +52,13 @@ export function FatalErrorState({ onReset }: FatalErrorStateProps) {
   );
 }
 
-export function InvalidResultState() {
+type InvalidResultStateProps = {
+  readonly description?: string;
+};
+
+export function InvalidResultState({
+  description = 'The result link is invalid.',
+}: InvalidResultStateProps = {}) {
   return (
     <section aria-labelledby="invalid-result-title" className="state-page state-page--result">
       <div className="state-panel state-panel--result">
@@ -61,7 +67,37 @@ export function InvalidResultState() {
         </span>
         <p className="eyebrow">RESULT UNAVAILABLE</p>
         <h1 id="invalid-result-title">Result not available</h1>
-        <p>The result link is invalid.</p>
+        <p>{description}</p>
+        <div className="state-actions">
+          <AppLink className="button button--primary" href="/solo">
+            Start draft <span aria-hidden="true">↗</span>
+          </AppLink>
+          <AppLink className="button button--secondary" href="/">
+            Back to home
+          </AppLink>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+type UnavailableResultStateProps = {
+  readonly snapshotVersion: string;
+};
+
+export function UnavailableResultState({ snapshotVersion }: UnavailableResultStateProps) {
+  return (
+    <section aria-labelledby="unavailable-result-title" className="state-page state-page--result">
+      <div className="state-panel state-panel--result">
+        <span aria-hidden="true" className="state-mark state-mark--result">
+          !
+        </span>
+        <p className="eyebrow">SNAPSHOT UNAVAILABLE</p>
+        <h1 id="unavailable-result-title">Result needs an older snapshot</h1>
+        <p>
+          This result uses champion data from patch {snapshotVersion}, which this build no longer
+          has available.
+        </p>
         <div className="state-actions">
           <AppLink className="button button--primary" href="/solo">
             Start draft <span aria-hidden="true">↗</span>

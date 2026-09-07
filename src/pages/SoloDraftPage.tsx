@@ -4,8 +4,9 @@ import { AppLink } from '../components/AppLink';
 import { ChampionArtwork, type ChampionArtworkAbility } from '../components/ChampionArtwork';
 import { ComponentCard, ComponentDetailsPopover } from '../components/ComponentCard';
 import { RoundRail } from '../components/RoundRail';
+import { ShareResultActions } from '../components/ShareResultActions';
 import { BUNDLED_CHAMPION_SNAPSHOT } from '../data/runtime-snapshot';
-import type { Champion, ChampionSnapshot, Component, DraftVariant } from '../data/snapshot-schema';
+import type { ChampionSnapshot } from '../data/snapshot-schema';
 import {
   createRun,
   currentRound,
@@ -18,6 +19,12 @@ import {
   type RunState,
   type Selection,
 } from '../domain/draft-engine';
+import {
+  findSelectionDetails,
+  formatSourceName,
+  type SelectionDetails,
+} from '../domain/selection-details';
+import { createSharePath } from '../domain/share-codec';
 import { SLOT_METADATA, type Slot } from '../domain/slots';
 import {
   clearSoloRun,
@@ -632,6 +639,7 @@ function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
           <h2>Draft again</h2>
         </div>
         <div className="result-actions__buttons">
+          <ShareResultActions sharePath={createSharePath(run.completion)} />
           <button className="button button--primary" onClick={onPlayAgain} type="button">
             Play Again <span aria-hidden="true">↗</span>
           </button>
@@ -676,31 +684,4 @@ function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
       </section>
     </div>
   );
-}
-
-type SelectionDetails = {
-  readonly champion: Champion;
-  readonly variant: DraftVariant;
-  readonly component: Component;
-};
-
-function findSelectionDetails(
-  snapshot: ChampionSnapshot,
-  selection: Selection,
-): SelectionDetails | null {
-  const champion = snapshot.champions.find((candidate) => candidate.id === selection.championId);
-  const variant = champion?.variants.find((candidate) => candidate.id === selection.variantId);
-  const component = variant?.components[selection.slot];
-
-  if (!champion || !variant || !component || component.id !== selection.componentId) {
-    return null;
-  }
-
-  return { champion, variant, component };
-}
-
-function formatSourceName(details: SelectionDetails): string {
-  return details.variant.label
-    ? `${details.champion.name} · ${details.variant.label}`
-    : details.champion.name;
 }

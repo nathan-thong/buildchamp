@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">BuildChamp</title>
+  <desc id="description">Six slots. One build.</desc>
+  <rect width="1200" height="630" fill="#070d16" />
+  <circle cx="1010" cy="70" r="330" fill="none" stroke="#0bc4e3" stroke-opacity=".18" stroke-width="2" />
+  <circle cx="1010" cy="70" r="250" fill="none" stroke="#c8aa6e" stroke-opacity=".28" stroke-width="2" />
+  <path d="M0 500h1200" stroke="#f0e6d2" stroke-opacity=".15" />
+  <path d="M0 535h1200" stroke="#f0e6d2" stroke-opacity=".08" />
+  <g fill="#0d1825" stroke="#c8aa6e" stroke-opacity=".72">
+    <rect x="735" y="205" width="78" height="78" />
+    <rect x="827" y="205" width="78" height="78" />
+    <rect x="919" y="205" width="78" height="78" />
+    <rect x="735" y="297" width="78" height="78" />
+    <rect x="827" y="297" width="78" height="78" />
+    <rect x="919" y="297" width="78" height="78" />
+  </g>
+  <g fill="#0ac8b9">
+    <path d="m776 224 14 13 7-20 12 15 12-15 7 20 14-13v39c0 4-3 7-7 7h-52c-4 0-7-3-7-7v-39Z" />
+    <circle cx="866" cy="244" r="18" opacity=".65" />
+    <circle cx="958" cy="244" r="18" opacity=".4" />
+    <path d="M756 336h36v8h-36zM848 336h36v8h-36zM940 336h36v8h-36z" opacity=".65" />
+  </g>
+  <g fill="#f0e6d2" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+    <text x="92" y="230" font-size="94" font-weight="700" letter-spacing="-5">BUILDCHAMP</text>
+    <text x="98" y="300" fill="#e7c982" font-size="28" font-weight="700" letter-spacing="8">SIX SLOTS. ONE BUILD.</text>
+    <text x="98" y="560" fill="#c1bdaf" font-size="22" letter-spacing="2">AN UNOFFICIAL FAN PROJECT</text>
+  </g>
+</svg>

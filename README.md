@@ -6,14 +6,17 @@ Each run gives you six champion reveals. For each one, permanently claim one rem
 
 ## Project Status
 
-Slice 5, Recovery, Sound, and Accessibility, is in progress. The repository contains a validated
-English Data Dragon 16.17.1 snapshot, deterministic source/cache/normalize/emit stages, reviewed
-champion compatibility entries covering shared systems and transformed states, a generated patch
-report, and a pure deterministic engine with adaptive legal-path checking. The `/solo` route runs a
-complete, untimed six-round draft with irreversible locks, snapshot-backed artwork and ability
+Slice 6, Shareable Results, is complete; Slice 7, Solo QA and Content Pass, is next. The repository contains a validated English Data Dragon
+16.17.1 snapshot, retained 15.17.1 snapshot, deterministic source/cache/normalize/emit stages,
+reviewed champion compatibility entries covering shared systems and transformed states, a generated
+patch report, and a pure deterministic engine with adaptive legal-path checking. The `/solo` route
+runs a complete, untimed six-round draft with irreversible locks, snapshot-backed artwork and ability
 details, validated active-run recovery with storage-failure feedback, restrained interaction audio
-after first interaction, persistent mute, a final reveal, and a fresh rematch. The home board and
-`/build/demo` remain clearly labelled foundation/demo fixtures. See
+after first interaction, persistent mute, a final reveal, a fresh rematch, and an identifier-only
+versioned result link. `/build/:payload` validates the link, renders the pinned snapshot, and gives
+accessible copy/share feedback; malformed and unavailable links have recovery states. The home board
+and `/build/demo` remain clearly labelled foundation/demo fixtures, while completed shared results
+use retained champion snapshots. See
 [CURRENT_STATE.md](./CURRENT_STATE.md) for the concise, maintained implementation handoff.
 
 The plan is:
@@ -84,8 +87,8 @@ pnpm test:e2e
 
 The `/solo` route consumes the bundled, validated snapshot and may request the default artwork URLs
 recorded in that snapshot. It does not fetch mutable champion data at gameplay runtime.
-The home and result screens still use explicitly labelled interface fixtures; no gameplay claims
-should be inferred from those fixture boards. To refresh the pinned snapshot deliberately, provide
+The home board and `/build/demo` use explicitly labelled interface fixtures; completed shared results
+use the validated champion snapshots and their pinned data version. To refresh the pinned snapshot deliberately, provide
 an explicit version and stable generation timestamp:
 
 ```sh
