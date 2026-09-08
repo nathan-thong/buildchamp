@@ -777,7 +777,6 @@ button.slot-card[aria-pressed='true'] {
     linear-gradient(135deg, var(--bc-color-gold-wash-soft), transparent 35%),
     var(--bc-color-surface);
   box-shadow: var(--bc-shadow-board);
-  transform: rotate(-3deg);
 }
 
 .home-build-card::before {
@@ -3232,10 +3231,6 @@ button.slot-card[aria-pressed='true'] {
   .home-stage {
     min-height: 0;
     padding: 1rem 0;
-  }
-
-  .home-build-card {
-    transform: rotate(-1.5deg);
   }
 
   .home-build-card__art {
