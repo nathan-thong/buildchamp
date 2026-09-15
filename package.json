@@ -19,7 +19,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "sync:champion-data": "tsx scripts/sync-champion-data.ts"
+    "sync:champion-data": "tsx scripts/sync-champion-data.ts",
+    "check:cloudflare": "tsx scripts/check-cloudflare-deployment.ts",
+    "check:release-gate": "tsx scripts/check-release-gate.ts",
+    "build:cloudflare": "pnpm run build && pnpm run check:cloudflare",
+    "cloudflare:login": "wrangler login",
+    "cloudflare:dev": "wrangler dev --env preview",
+    "cloudflare:deployments": "wrangler deployments list",
+    "cloudflare:status": "wrangler deployments status",
+    "cloudflare:rollback": "wrangler rollback",
+    "deploy:preview": "pnpm run check:release-gate -- preview && pnpm run build:cloudflare && wrangler deploy --env preview",
+    "deploy:production": "pnpm run check:release-gate -- production && pnpm run build:cloudflare && wrangler deploy"
   },
   "dependencies": {
     "react": "^19.1.1",
@@ -48,7 +58,8 @@
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.39.1",
     "vite": "^7.3.6",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wrangler": "4.131.2"
   },
   "allowScripts": {
     "esbuild@0.28.2": true

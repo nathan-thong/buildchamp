@@ -1,2 +1,8 @@
 allowBuilds:
   esbuild: true
+  sharp: false
+  workerd: true
+# Keep platform-specific esbuild binaries paired with their JavaScript wrapper.
+hoistPattern:
+  - '*'
+  - '!@esbuild/*'

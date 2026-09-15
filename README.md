@@ -34,6 +34,7 @@ The plan is:
 - Zod for runtime validation
 - Vitest, React Testing Library, and Playwright
 - Cloudflare Workers Static Assets for the solo release
+- Pinned Wrangler CLI for preview and production deployment
 - Cloudflare Worker, native WebSockets, and one SQLite-backed Durable Object per multiplayer lobby
 - Controlled, versioned Riot Data Dragon snapshots for champion data and default artwork
 
@@ -52,6 +53,7 @@ The Markdown files are intentionally separated by responsibility:
 | [CHAMPION_DATA.md](./CHAMPION_DATA.md) | The gameplay-data contract: slot meanings, resource policy, portability tests, normalized schemas, patch sync, variants, and champion exceptions |
 | [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | The build order: twelve vertical slices with acceptance criteria for the Solo MVP and Private Lobby MVP |
 | [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) | The snapshot, Riot policy, registration, notice, and asset-eligibility release gates |
+| [DEPLOYMENT.md](./DEPLOYMENT.md) | Cloudflare preview/production commands, rollback, headers, diagnostics, and cost guardrails |
 | [AGENTS.md](./AGENTS.md) | Operating instructions for coding agents working in this repository, including required reading and non-negotiable invariants |
 | [REPOSITORY_WORKFLOW.md](./REPOSITORY_WORKFLOW.md) | On-demand branch, staging, commit, push, handoff, and README-maintenance policy |
 
@@ -75,6 +77,7 @@ pnpm lint
 pnpm format
 pnpm test
 pnpm build
+pnpm build:cloudflare
 pnpm preview
 ```
 
@@ -98,6 +101,12 @@ pnpm sync:champion-data -- --version 16.17.1 --generated-at 2026-09-05T00:00:00.
 The importer writes versioned JSON under `src/data/snapshots/` and a review report under
 `data/champion-reports/`. Use [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) before any public
 release containing Riot data or assets.
+
+Cloudflare deployment preparation is included in the repository. Run `pnpm build:cloudflare` to
+build and verify the deployable static assets, or `pnpm run cloudflare:dev` for a local Worker
+smoke test. Public preview and production deployments are guarded by the Riot release checklist
+and explicit operator confirmations; no deployment URL is claimed until one exists. See
+[DEPLOYMENT.md](./DEPLOYMENT.md) for deployment, rollback, and monitoring guidance.
 
 ## Core Rules
 
