@@ -18,6 +18,7 @@ import {
 } from '../domain/selection-details';
 import { createSharePath, decodeShareResult, type ShareResult } from '../domain/share-codec';
 import { SLOT_METADATA, SLOT_ORDER } from '../domain/slots';
+import { createShareCardData } from '../lib/share-card';
 
 type ResultPageProps = {
   readonly payload: string;
@@ -124,7 +125,10 @@ function SharedResultPage({ details, result, snapshot }: SharedResultPageProps) 
           <h2>Share or draft again</h2>
         </div>
         <div className="result-actions__buttons">
-          <ShareResultActions sharePath={createSharePath(result)} />
+          <ShareResultActions
+            shareCard={createShareCardData(snapshot.dataDragonVersion, details)}
+            sharePath={createSharePath(result)}
+          />
           <AppLink className="button button--primary" href="/solo">
             Start a new draft <span aria-hidden="true">↗</span>
           </AppLink>

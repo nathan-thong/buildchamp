@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { Champion, DraftVariant } from '../data/snapshot-schema';
+import { getVariantDisplayLabel } from '../domain/selection-details';
 
 export type ChampionArtworkAbility = {
   readonly slot: string;
@@ -21,7 +22,7 @@ export function ChampionArtwork({
   abilities = [],
   className = '',
 }: ChampionArtworkProps) {
-  const variantLabel = variant?.label;
+  const variantLabel = getVariantDisplayLabel(champion, variant);
   const imageSource = champion.assetRefs.defaultSplash;
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const alt = variantLabel

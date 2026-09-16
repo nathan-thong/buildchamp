@@ -51,6 +51,7 @@ describe('ResultPage', () => {
     expect(screen.getByText('Patch 16.17.1')).toBeInTheDocument();
     expect(screen.getAllByRole('article')).toHaveLength(6);
     expect(screen.getByRole('button', { name: 'Copy result link' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy as PNG' })).toBeInTheDocument();
   });
 
   it('renders a retained historical snapshot named by the shared payload', () => {

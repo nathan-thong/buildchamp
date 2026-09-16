@@ -14,7 +14,8 @@ runs a complete, untimed six-round draft with irreversible locks, snapshot-backe
 details, validated active-run recovery with storage-failure feedback, restrained interaction audio
 after first interaction, persistent mute, a final reveal, a fresh rematch, and an identifier-only
 versioned result link. `/build/:payload` validates the link, renders the pinned snapshot, and gives
-accessible copy/share feedback; malformed and unavailable links have recovery states. The home board
+accessible link/native-share feedback plus a branded PNG share card when image clipboard support is
+available; malformed and unavailable links have recovery states. The home board
 and `/build/demo` remain clearly labelled foundation/demo fixtures, while completed shared results
 use retained champion snapshots. See
 [CURRENT_STATE.md](./CURRENT_STATE.md) for the concise, maintained implementation handoff.

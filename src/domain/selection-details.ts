@@ -27,8 +27,14 @@ export function findSelectionDetails(
   return { champion, variant, component };
 }
 
+export function getVariantDisplayLabel(
+  champion: Pick<Champion, 'variants'>,
+  variant: Pick<DraftVariant, 'label'> | undefined,
+): string | undefined {
+  return champion.variants.length > 1 ? variant?.label : undefined;
+}
+
 export function formatSourceName(details: SelectionDetails): string {
-  return details.variant.label
-    ? `${details.champion.name} · ${details.variant.label}`
-    : details.champion.name;
+  const variantLabel = getVariantDisplayLabel(details.champion, details.variant);
+  return variantLabel ? `${details.champion.name} · ${variantLabel}` : details.champion.name;
 }

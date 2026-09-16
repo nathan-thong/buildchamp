@@ -22,6 +22,7 @@ import {
 import {
   findSelectionDetails,
   formatSourceName,
+  getVariantDisplayLabel,
   type SelectionDetails,
 } from '../domain/selection-details';
 import { createSharePath } from '../domain/share-codec';
@@ -32,6 +33,7 @@ import {
   readSoloRun,
   writeSoloRun,
 } from '../lib/solo-run-storage';
+import { createShareCardData } from '../lib/share-card';
 import { useSound } from '../lib/sound';
 
 type SoloDraftPageProps = {
@@ -143,6 +145,7 @@ export function SoloDraftPage({
     : null;
   const choiceState =
     openSlots.length === 1 ? 'Final slot · lock it to finish' : `${openSlots.length} slots open`;
+  const offerVariantLabel = getVariantDisplayLabel(run.offer.champion, run.offer.variant);
 
   function handleSelect(slot: DraftSlot) {
     if (run.status !== 'drafting' || run.lockedBuild[slot]) {
@@ -288,8 +291,8 @@ export function SoloDraftPage({
               width="96"
             />
             <div className="offer-panel__identity">
-              {run.offer.variant.label && (
-                <p className="offer-panel__variant">Variant · {run.offer.variant.label}</p>
+              {offerVariantLabel && (
+                <p className="offer-panel__variant">Variant · {offerVariantLabel}</p>
               )}
               <h2 id="offer-title">{run.offer.champion.name}</h2>
               <p className="offer-panel__title">{run.offer.champion.title}</p>
@@ -563,8 +566,15 @@ type CompletedDraftProps = {
 function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
   const completionHeadingRef = useRef<HTMLHeadingElement>(null);
   const [expandedSlot, setExpandedSlot] = useState<DraftSlot | null>(null);
-  const bodySelection = run.completion.build.body;
-  const bodyDetails = findSelectionDetails(snapshot, bodySelection);
+  const detailsBySlot: Partial<Record<DraftSlot, SelectionDetails>> = {};
+  for (const slot of DRAFT_SLOT_ORDER) {
+    const details = findSelectionDetails(snapshot, run.completion.build[slot]);
+    if (details) {
+      detailsBySlot[slot] = details;
+    }
+  }
+
+  const bodyDetails = detailsBySlot.body;
 
   useEffect(() => {
     completionHeadingRef.current?.focus();
@@ -575,7 +585,7 @@ function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
   }
 
   const abilityIcons: ChampionArtworkAbility[] = DRAFT_SLOT_ORDER.slice(1).flatMap((slot) => {
-    const details = findSelectionDetails(snapshot, run.completion.build[slot]);
+    const details = detailsBySlot[slot];
     return details
       ? [
           {
@@ -586,6 +596,7 @@ function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
         ]
       : [];
   });
+  const shareCard = createShareCardData(run.completion.snapshotVersion, detailsBySlot);
 
   return (
     <div className="page-container draft-page completion-page">
@@ -639,7 +650,10 @@ function CompletedDraft({ run, snapshot, onPlayAgain }: CompletedDraftProps) {
           <h2>Draft again</h2>
         </div>
         <div className="result-actions__buttons">
-          <ShareResultActions sharePath={createSharePath(run.completion)} />
+          <ShareResultActions
+            shareCard={shareCard ?? undefined}
+            sharePath={createSharePath(run.completion)}
+          />
           <button className="button button--primary" onClick={onPlayAgain} type="button">
             Play Again <span aria-hidden="true">↗</span>
           </button>

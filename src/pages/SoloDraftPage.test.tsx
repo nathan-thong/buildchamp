@@ -240,6 +240,7 @@ describe('solo gameplay', () => {
     expect(
       screen.getAllByText(/from (alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel)/i),
     ).not.toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Copy as PNG' })).toBeInTheDocument();
     expect(screen.queryByText(/no score/i)).not.toBeInTheDocument();
 
     const firstDetailsButton = screen.getAllByRole('button', { name: /full details for/i })[0]!;
