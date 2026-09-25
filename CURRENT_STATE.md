@@ -1,6 +1,6 @@
 # Current State
 
-Last updated: 2026-09-16
+Last updated: 2026-09-26
 
 ## Now
 
@@ -18,7 +18,7 @@ Last updated: 2026-09-16
 ## Verified Repository State
 
 - The validated 16.17.1 snapshot contains 173 champions, 172 eligible; Aphelios is excluded. Reviewed exceptions are covered by regression tests.
-- Slice 4, the dependency refresh, the UI/UX refinement, Slice 5 recovery/audio work, Slice 6 shareable results, and Slice 8 deployment preparation are committed on `main`, which tracks `origin/main`; the PNG share-card refinement is currently uncommitted and no deployment exists.
+- Slice 4, the dependency refresh, the UI/UX refinement, Slice 5 recovery/audio work, Slice 6 shareable results, the PNG share-card refinement (`d61fca1`), and Slice 8 deployment preparation are committed on `main`, which tracks `origin/main`; no deployment exists.
 - Wrangler 4.131.2 is pinned with `wrangler.jsonc` preview/production targets, a frozen-install-safe pnpm layout, a retained-snapshot bundle check, and guarded deployment scripts. The preview dry run validates the Worker and `ASSETS` binding without publishing.
 - Verified with `pnpm install --frozen-lockfile`, typecheck, 82 unit tests, lint, format, build, bundle check, Wrangler dry run, and 15 Playwright journeys. A local Worker smoke test confirmed direct routes, immutable JS caching, security headers, and a 404 for missing file-like assets. Historical 15.17.1 and current 16.17.1 payloads render from pinned snapshots; the browser makes no mutable champion-data request. No deployment exists.
 
