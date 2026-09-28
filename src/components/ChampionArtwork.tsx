@@ -37,16 +37,19 @@ export function ChampionArtwork({
           <strong>{champion.name}</strong>
         </div>
       ) : (
-        <img
-          alt={alt}
-          className="champion-art__image"
-          decoding="async"
-          height="1080"
-          loading="eager"
-          onError={() => setFailedSource(imageSource)}
-          src={imageSource}
-          width="1920"
-        />
+        <picture>
+          <source media="(max-width: 640px)" srcSet={champion.assetRefs.defaultLoading} />
+          <img
+            alt={alt}
+            className="champion-art__image"
+            decoding="async"
+            height="1080"
+            loading="eager"
+            onError={() => setFailedSource(imageSource)}
+            src={imageSource}
+            width="1920"
+          />
+        </picture>
       )}
       <div aria-hidden="true" className="champion-art__wash" />
       <div aria-hidden="true" className="champion-art__grid" />

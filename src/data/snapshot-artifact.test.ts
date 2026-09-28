@@ -246,11 +246,13 @@ describe('pinned champion snapshot', () => {
       const component = validated.champions.find((champion) => champion.id === championId)
         ?.variants[0]?.components[slot];
 
-      expect(component?.availability.status, `${championId}/${slot}`).toBe('unavailable');
-      expect(component?.availability.reasonCode, `${championId}/${slot}`).toBe(
+      if (component?.availability.status !== 'unavailable') {
+        throw new Error(`${championId}/${slot} must be unavailable.`);
+      }
+      expect(component.availability.reasonCode, `${championId}/${slot}`).toBe(
         'requires-original-kit',
       );
-      expect(component?.dependencies, `${championId}/${slot}`).toEqual([]);
+      expect(component.dependencies, `${championId}/${slot}`).toEqual([]);
     }
 
     const unresolvedTemplates = validated.champions.flatMap((champion) =>

@@ -76,6 +76,9 @@ describe('BuildChamp foundation routes', () => {
     );
 
     expect(screen.getByRole('alert')).toHaveTextContent(/could not load the page/i);
+    expect(
+      screen.getByText(/created under Riot Games' “Legal Jibber Jabber” policy/i),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /go home/i }));
     expect(
       screen.getByRole('heading', { level: 1, name: /build your own champion/i }),

@@ -9,12 +9,13 @@ import {
   lockSelection,
   selectionForSlot,
   type Completion,
+  type RunState,
 } from '../domain/draft-engine';
 import { encodeShareResult } from '../domain/share-codec';
 import { ResultPage } from './ResultPage';
 
 function completeSnapshot(snapshot: ChampionSnapshot, seed: number): Completion {
-  let state = createRun(snapshot, createSeededRandom(seed));
+  let state: RunState = createRun(snapshot, createSeededRandom(seed));
   const random = createSeededRandom(seed + 1);
 
   for (let lock = 0; lock < 6; lock += 1) {

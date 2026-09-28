@@ -503,7 +503,7 @@ describe('normalizeChampionSnapshot', () => {
       ['yunara', 'r', 'Transcend One’s Self only upgrades Yunara’s basic abilities.'],
       ['zyra', 'passive', 'Garden of Thorns requires Zyra’s Q or E to grow its seeds into plants.'],
     ] as const;
-    const championIds = new Set(expected.map(([championId]) => championId));
+    const championIds = new Set<string>(expected.map(([championId]) => championId));
     const source = makeRawSource(
       [...championIds].map((championId, index) =>
         makeRawChampion(

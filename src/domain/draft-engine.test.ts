@@ -52,7 +52,7 @@ describe('draft engine', () => {
   });
 
   it('keeps every pre-final offer selectable and completable', () => {
-    let state = createRun(RESTRICTED_DRAFT_FIXTURE, createSeededRandom(7));
+    let state: RunState = createRun(RESTRICTED_DRAFT_FIXTURE, createSeededRandom(7));
 
     while (state.status === 'drafting') {
       const minimumChoices = state.round < 5 ? 2 : 1;
@@ -122,12 +122,14 @@ describe('draft engine', () => {
   });
 
   it('forces the sole final component and starts rematches cleanly', () => {
-    let state = createRun(NORMAL_DRAFT_FIXTURE, createSeededRandom(12));
+    let state: RunState = createRun(NORMAL_DRAFT_FIXTURE, createSeededRandom(12));
     while (state.status === 'drafting' && state.round < 5) {
       state = autopick(NORMAL_DRAFT_FIXTURE, state, createSeededRandom(state.round + 1));
     }
 
-    expect(state.status).toBe('drafting');
+    if (state.status !== 'drafting') {
+      throw new Error('The active run should reach the final step.');
+    }
     expect(currentRound(state)).toBe(6);
     expect(state.offer.selectableComponents).toHaveLength(1);
 

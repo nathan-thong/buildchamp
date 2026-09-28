@@ -35,6 +35,7 @@ assertFile(distDirectory, 'Vite output directory');
 assertFile(join(distDirectory, 'index.html'), 'SPA entry document');
 assertFile(join(distDirectory, '_headers'), 'Cloudflare response headers');
 assertFile(join(distDirectory, '404.html'), 'custom static error document');
+assertFile(join(distDirectory, 'service-worker.js'), 'offline application-shell service worker');
 
 const wranglerConfig = readFileSync(join(repositoryRoot, 'wrangler.jsonc'), 'utf8');
 assertContains(wranglerConfig, '"main": "./worker/index.ts"', 'Worker entrypoint configuration');
@@ -57,11 +58,28 @@ assertContains(
   'Cache-Control: public, max-age=31536000, immutable',
   'immutable asset caching headers',
 );
+assertContains(
+  headers,
+  '/service-worker.js\n  Cache-Control: no-cache',
+  'service-worker update headers',
+);
+
+const serviceWorker = readFileSync(join(distDirectory, 'service-worker.js'), 'utf8');
+assertContains(serviceWorker, 'cache.addAll', 'offline app-shell precache');
+assertContains(
+  serviceWorker,
+  "cache.match('/index.html', { ignoreVary: true })",
+  'offline SPA route fallback',
+);
 
 const indexHtml = readFileSync(join(distDirectory, 'index.html'), 'utf8');
 if (indexHtml.includes('/src/main.tsx')) {
   fail('the source entrypoint was copied into the deployable HTML');
 }
+
+const notFoundHtml = readFileSync(join(distDirectory, '404.html'), 'utf8');
+assertContains(notFoundHtml, "isn't endorsed by Riot Games", 'non-endorsement notice');
+assertContains(notFoundHtml, 'Legal Jibber Jabber', 'Riot asset notice');
 
 const distFiles = collectFiles(distDirectory);
 const sourceOnlyFiles = distFiles.filter((path) => {
@@ -80,12 +98,18 @@ if (sourceOnlyFiles.length > 0) {
 const assetFiles = distFiles.filter((path) =>
   relative(distDirectory, path).replaceAll('\\', '/').startsWith('assets/'),
 );
-if (!assetFiles.some((path) => /-[A-Za-z0-9]{8,}\.(?:js|css)$/.test(path))) {
+if (!assetFiles.some((path) => /-[A-Za-z0-9_-]{8,}\.(?:js|css)$/.test(path))) {
   fail('no fingerprinted Vite asset was found under dist/assets');
 }
 
 const javascriptBundles = assetFiles.filter((path) => extname(path) === '.js');
 const bundleContents = javascriptBundles.map((path) => readFileSync(path, 'utf8')).join('\n');
+assertContains(
+  bundleContents,
+  "doesn't reflect the views or opinions of Riot Games",
+  'app non-endorsement notice',
+);
+assertContains(bundleContents, 'Legal Jibber Jabber', 'app Riot asset notice');
 const snapshotVersions = readdirSync(snapshotDirectory)
   .filter((fileName) => extname(fileName) === '.json')
   .map((fileName) => fileName.slice(0, -extname(fileName).length))

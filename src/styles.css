@@ -308,11 +308,17 @@ button:disabled {
 
 .site-footer__inner {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 1.25rem 2rem;
   padding-top: 1.25rem;
   padding-bottom: 1.25rem;
+}
+
+.site-footer__notices {
+  display: grid;
+  min-width: 0;
+  gap: 0.6rem;
 }
 
 .site-footer__brand {
@@ -336,7 +342,7 @@ button:disabled {
 .site-footer__meta {
   margin: 0;
   color: var(--bc-color-ink-muted);
-  font-size: 0.67rem;
+  font-size: var(--bc-font-size-description);
   line-height: 1.5;
 }
 
@@ -3393,6 +3399,14 @@ button.slot-card[aria-pressed='true'] {
 }
 
 @media (max-width: 400px) {
+  .draft-page {
+    padding-top: 0.75rem;
+  }
+
+  .draft-board {
+    margin-top: 0.5rem;
+  }
+
   .mute-control {
     width: 2.75rem;
     min-width: 2.75rem;

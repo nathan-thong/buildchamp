@@ -79,6 +79,13 @@ Solo play is fully client-side:
 
 No API, account, database, or runtime fetch from Data Dragon is required. If JavaScript is reloaded mid-run, recovery uses a versioned and Zod-validated local payload. Invalid or obsolete recovery data is discarded safely.
 
+The production build generates a content-versioned service worker. On the first online visit it
+precaches the SPA shell and fingerprinted JavaScript and CSS, then uses the cached shell as a
+fallback for application-route navigations when offline. Champion artwork stays on its approved
+remote source; the existing artwork fallback keeps the game usable when those images cannot
+load. The service worker is updated without long-lived HTTP caching, and activation removes older
+BuildChamp shell caches.
+
 ## Share Results
 
 The initial result route uses a compact, URL-safe payload containing:

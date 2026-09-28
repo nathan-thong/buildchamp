@@ -14,6 +14,11 @@ async function expectNoHorizontalOverflow(page: Page) {
 
 test('home starts a solo draft and exposes the six-slot board', async ({ page }) => {
   await page.goto('/');
+  await expect(page).toHaveTitle(/six-slot champion draft/i);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    'content',
+    /unofficial six-pick champion drafting game/i,
+  );
   await expect(
     page.getByRole('heading', { level: 1, name: /build your own champion/i }),
   ).toBeVisible();
@@ -46,6 +51,33 @@ test('home starts a solo draft and exposes the six-slot board', async ({ page })
   await expect(page.getByRole('button', { name: /01 \/ body/i })).toBeVisible();
   await expect(page.locator('.build-status-list .build-status')).toHaveCount(6);
   await expect(page.getByRole('listitem', { name: /passive slot/i })).toBeVisible();
+});
+
+test('Riot notices keep a readable width on desktop and narrow mobile screens', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+
+  const notices = page.locator('.site-footer__notices .site-footer__notice');
+  await expect(notices).toHaveCount(2);
+  const desktopLayout = await notices.evaluateAll((elements) =>
+    elements.map((element) => {
+      const bounds = element.getBoundingClientRect();
+      return { width: bounds.width, top: bounds.top, bottom: bounds.bottom };
+    }),
+  );
+  expect(desktopLayout[0].width).toBeGreaterThan(800);
+  expect(desktopLayout[1].width).toBe(desktopLayout[0].width);
+  expect(desktopLayout[1].top).toBeGreaterThan(desktopLayout[0].bottom);
+
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.reload();
+  const mobileLayout = await notices.evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().width),
+  );
+  expect(mobileLayout[0]).toBeGreaterThan(250);
+  expect(mobileLayout[1]).toBe(mobileLayout[0]);
 });
 
 test('solo lock interaction is keyboard reachable', async ({ page }) => {
@@ -140,6 +172,14 @@ test('solo completes the six-lock snapshot-backed journey and starts a fresh rem
 });
 
 test('completed builds round-trip through a clean shared result URL', async ({ page }) => {
+  await page.route(
+    /^https:\/\/(?:ddragon\.leagueoflegends\.com|raw\.communitydragon\.org)\//,
+    (route) =>
+      route.fulfill({
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
+      }),
+  );
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -188,6 +228,14 @@ test('completed builds round-trip through a clean shared result URL', async ({ p
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(sharedUrl);
   await expect(page.getByRole('heading', { name: 'Your composite champion' })).toBeVisible();
+  const mobileArtworkSelected = await page
+    .locator('.champion-art__image')
+    .first()
+    .evaluate((image) => {
+      const source = image.parentElement?.querySelector('source');
+      return image.currentSrc === source?.srcset;
+    });
+  expect(mobileArtworkSelected).toBe(true);
   await expect(page.getByText('Patch 16.17.1')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Inspect each choice' })).toBeVisible();
   await expectNoHorizontalOverflow(page);
@@ -429,12 +477,18 @@ test('result, not-found, loading, and fatal states are user-facing', async ({ pa
 
   await page.goto('/missing');
   await expect(page.getByRole('heading', { level: 1, name: /page not found/i })).toBeVisible();
+  await expect(
+    page.getByText(/created under Riot Games' “Legal Jibber Jabber” policy/i),
+  ).toBeVisible();
 
   await page.goto('/?preview=loading');
   await expect(page.getByRole('status')).toContainText(/loading/i);
 
   await page.goto('/?preview=fatal');
   await expect(page.getByRole('alert')).toContainText(/could not load the page/i);
+  await expect(
+    page.getByText(/created under Riot Games' “Legal Jibber Jabber” policy/i),
+  ).toBeVisible();
   await page.getByRole('button', { name: /go home/i }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(
@@ -450,5 +504,28 @@ test('the home layout remains readable on a narrow viewport', async ({ page }) =
     page.getByRole('heading', { level: 1, name: /build your own champion/i }),
   ).toBeVisible();
   await expect(page.getByRole('link', { name: /start solo draft/i })).toBeVisible();
-  await expect(page.getByText(/unofficial fan project/i)).toBeVisible();
+  await expect(
+    page.getByText(/doesn't reflect the views or opinions of Riot Games/i),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/created under Riot Games' “Legal Jibber Jabber” policy/i),
+  ).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
+test('a slow champion asset does not block the first draft choice', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.route(/ddragon\.leagueoflegends\.com/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await route.continue();
+  });
+
+  await page.goto('/solo', { waitUntil: 'domcontentloaded' });
+  await expect(
+    page.getByRole('heading', { level: 1, name: /choose one part to keep/i }),
+  ).toBeVisible();
+  await expect(page.locator('.component-card__select').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose a component' })).toBeDisabled();
+  expect(pageErrors).toEqual([]);
 });

@@ -126,7 +126,7 @@ function SharedResultPage({ details, result, snapshot }: SharedResultPageProps) 
         </div>
         <div className="result-actions__buttons">
           <ShareResultActions
-            shareCard={createShareCardData(snapshot.dataDragonVersion, details)}
+            shareCard={createShareCardData(snapshot.dataDragonVersion, details) ?? undefined}
             sharePath={createSharePath(result)}
           />
           <AppLink className="button button--primary" href="/solo">

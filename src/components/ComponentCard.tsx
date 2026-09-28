@@ -81,7 +81,7 @@ export function ComponentCard({
       </div>
       <p className="component-card__summary">{component.shortDescription}</p>
       <ComponentMetrics component={component} slot={slot} />
-      {state === 'unavailable' && (
+      {component.availability.status === 'unavailable' && (
         <p className="component-card__unavailable" role="note">
           <strong>Unavailable</strong>
           {component.availability.summary}
@@ -277,7 +277,9 @@ function ComponentMetrics({ component, slot }: { component: Component; slot: Dra
       {metrics.map((metric) => (
         <div key={metric.label}>
           <dt>{metric.label}</dt>
-          <dd aria-label={metric.fullValue}>{metric.value}</dd>
+          <dd aria-label={'fullValue' in metric ? metric.fullValue : metric.value}>
+            {metric.value}
+          </dd>
         </div>
       ))}
     </dl>

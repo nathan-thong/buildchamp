@@ -44,6 +44,12 @@ describe('AppShell', () => {
 
     const first = render(<AppShell {...shell} />);
     expect(screen.getByRole('button', { name: 'Mute sound' })).toBeInTheDocument();
+    expect(
+      screen.getByText(/doesn't reflect the views or opinions of Riot Games/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/created under Riot Games' “Legal Jibber Jabber” policy/i),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Mute sound' }));
     expect(screen.getByRole('button', { name: 'Turn sound on' })).toBeInTheDocument();

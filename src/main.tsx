@@ -18,3 +18,7 @@ createRoot(rootElement).render(
     </AppErrorBoundary>
   </StrictMode>,
 );
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  void navigator.serviceWorker.register('/service-worker.js').catch(() => undefined);
+}

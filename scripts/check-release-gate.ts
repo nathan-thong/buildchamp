@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { checkedChecklistItems } from './release-checklist';
+
 const checklist = readFileSync(join(process.cwd(), 'RELEASE_CHECKLIST.md'), 'utf8');
+const checkedItems = checkedChecklistItems(checklist);
 const productionChecks = [
-  "Confirm BuildChamp is eligible under Riot Games' then-current policies.",
-  'Complete Riot Developer Portal registration and any required application registration before public release.',
+  "Assess BuildChamp against Riot Games' then-current game/IP policy and record the rationale for its free, original drafting game.",
+  'Complete Riot Developer Portal product registration; the maintainer reports the product is listed as approved (2026-09-28).',
   'Confirm the release uses only approved default champion data, icons, and artwork; no skins, community-uploaded imagery, or unreviewed assets are included.',
   'Confirm every player-visible surface includes the required Riot non-endorsement notice.',
   'If Riot assets are shipped, include the applicable Legal Jibber Jabber notice and verify its placement is conspicuous and readable.',
@@ -12,9 +15,7 @@ const productionChecks = [
   'Record the policy review and registration evidence with the release decision.',
 ];
 
-const missingChecks = productionChecks.filter(
-  (check) => !checklist.split(/\r?\n/).some((line) => line.startsWith(`- [x] ${check}`)),
-);
+const missingChecks = productionChecks.filter((check) => !checkedItems.has(check));
 const deploymentTarget = process.argv
   .slice(2)
   .find(

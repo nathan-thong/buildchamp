@@ -1,7 +1,14 @@
 # Cloudflare deployment
 
-BuildChamp is prepared for Cloudflare Workers Static Assets, but no preview or production
-deployment has been published yet.
+The production Workers.dev site is live at
+[buildchamp.nathan-thong.workers.dev](https://buildchamp.nathan-thong.workers.dev). A browser
+smoke check on 2026-09-28 confirmed direct navigation to `/`, `/solo`, `/build/demo`, and a valid
+versioned `/build/:payload` result. The deployed version still has the earlier short Riot footer,
+and `/service-worker.js` returns the custom 404. The updated notices and offline application shell
+in the current worktree have not been deployed.
+
+The deployed site does not satisfy the open Riot release gate. New public releases remain blocked
+until the asset-source review and release decision are recorded.
 
 ## Targets
 
@@ -50,7 +57,7 @@ pnpm deploy:preview
 
 ## Production deployment
 
-Production is intentionally blocked until every unchecked item in the Riot policy and registration
+Any new production release is blocked until every unchecked item in the Riot policy and registration
 section of [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) is completed and recorded. After that
 review, set the explicit operator confirmation and run:
 

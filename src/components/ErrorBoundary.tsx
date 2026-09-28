@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 import { FatalErrorState } from './StatePanels';
+import { SiteFooter } from './SiteFooter';
 
 type ErrorBoundaryProps = {
   readonly children: ReactNode;
@@ -32,7 +33,14 @@ export class AppErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
 
   render() {
     if (this.state.error) {
-      return <FatalErrorState onReset={this.handleReset} />;
+      return (
+        <div className="app-shell">
+          <main id="main-content">
+            <FatalErrorState onReset={this.handleReset} />
+          </main>
+          <SiteFooter />
+        </div>
+      );
     }
 
     return this.props.children;

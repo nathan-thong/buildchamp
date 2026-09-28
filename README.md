@@ -1,19 +1,25 @@
 # BuildChamp
 
-BuildChamp is an unofficial, non-commercial League of Legends party game about building a champion from random parts.
+BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. Planned private lobbies will let friends draft, reveal their builds, and vote to rank them.
 
-Each run gives you six champion reveals. For each one, permanently claim one remaining component—**Body, Q, W, E, R, or Passive**. There are no skips or rerolls. The result is intentionally subjective: BuildChamp is meant to start arguments, theorycrafting, and laughter between matches, not calculate an objective winner.
+A solo run has six rounds. In each round, permanently lock one remaining component—**Body, Q, W, E, R, or Passive**—from the offered champion. There are no skips or rerolls. Build strength stays subjective; players decide which combination wins.
 
 ## Project Status
 
-Slice 6, Shareable Results, is complete; Slice 7, Solo QA and Content Pass, is next. The repository contains a validated English Data Dragon
+Slice 7 technical QA is complete locally. The maintainer reports that BuildChamp's Riot Developer
+Portal listing is approved; review of the CommunityDragon image references remains open, so public
+release sign-off is pending. Slice 8 deployment preparation is complete, and a Workers.dev
+deployment is online at
+[buildchamp.nathan-thong.workers.dev](https://buildchamp.nathan-thong.workers.dev). The portal status
+does not by itself resolve asset eligibility. The repository contains a validated English Data Dragon
 16.17.1 snapshot, retained 15.17.1 snapshot, deterministic source/cache/normalize/emit stages,
 reviewed champion compatibility entries covering shared systems and transformed states, a generated
 patch report, and a pure deterministic engine with adaptive legal-path checking. The `/solo` route
-runs a complete, untimed six-round draft with irreversible locks, snapshot-backed artwork and ability
-details, validated active-run recovery with storage-failure feedback, restrained interaction audio
-after first interaction, persistent mute, a final reveal, a fresh rematch, and an identifier-only
-versioned result link. `/build/:payload` validates the link, renders the pinned snapshot, and gives
+runs a complete, untimed six-round draft with irreversible locks,
+snapshot-backed artwork and ability details, validated active-run recovery with storage-failure
+feedback, restrained interaction audio after first interaction, persistent mute, a final reveal,
+fresh rematches, and a versioned result link containing identifiers only. `/build/:payload`
+validates the link, renders the pinned snapshot, and gives
 accessible link/native-share feedback plus a branded PNG share card when image clipboard support is
 available; malformed and unavailable links have recovery states. The home board
 and `/build/demo` remain clearly labelled foundation/demo fixtures, while completed shared results
@@ -22,11 +28,11 @@ use retained champion snapshots. See
 
 The plan is:
 
-1. Untimed solo randomizer
-2. Shareable solo results
-3. Private link-based friend lobbies
-4. Shared reveal and lobby voting
-5. Accounts, public voting, and leaderboards only if the earlier game proves worthwhile
+1. Untimed solo draft
+2. Shareable build results
+3. Private friend lobbies
+4. Shared reveal and voting
+5. Public build rankings only if group play proves useful; accounts remain deferred
 
 ## Stack
 
@@ -39,24 +45,24 @@ The plan is:
 - Cloudflare Worker, native WebSockets, and one SQLite-backed Durable Object per multiplayer lobby
 - Controlled, versioned Riot Data Dragon snapshots for champion data and default artwork
 
-Solo play is designed to work entirely in the browser. The multiplayer backend is deliberately deferred until the solo experience is complete.
+Solo play runs in the browser without a gameplay backend. After its first online visit, the app shell and versioned code can reload offline; remote champion artwork may fall back when no network is available. The multiplayer backend is deliberately deferred until the solo experience is complete.
 
 ## Development Documentation
 
 The Markdown files are intentionally separated by responsibility:
 
-| Document | Purpose |
-| --- | --- |
-| [CURRENT_STATE.md](./CURRENT_STATE.md) | The compact handoff: present milestone, verified capabilities, next action, and active release blockers |
-| [DESIGN.md](./DESIGN.md) | The visual design system: palette, typography, layout, component treatment, and interface guardrails |
-| [PRODUCT.md](./PRODUCT.md) | The product contract: audience, game modes, draft rules, lobby behaviour, sharing, brand, accessibility, and deferred scope |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | The system design: frontend boundaries, Cloudflare topology, WebSocket protocol, persistence, security, performance, testing, and hosting portability |
-| [CHAMPION_DATA.md](./CHAMPION_DATA.md) | The gameplay-data contract: slot meanings, resource policy, portability tests, normalized schemas, patch sync, variants, and champion exceptions |
-| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | The build order: twelve vertical slices with acceptance criteria for the Solo MVP and Private Lobby MVP |
-| [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) | The snapshot, Riot policy, registration, notice, and asset-eligibility release gates |
-| [DEPLOYMENT.md](./DEPLOYMENT.md) | Cloudflare preview/production commands, rollback, headers, diagnostics, and cost guardrails |
-| [AGENTS.md](./AGENTS.md) | Operating instructions for coding agents working in this repository, including required reading and non-negotiable invariants |
-| [REPOSITORY_WORKFLOW.md](./REPOSITORY_WORKFLOW.md) | On-demand branch, staging, commit, push, handoff, and README-maintenance policy |
+| Document                                           | Purpose                                                                                                                                               |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [CURRENT_STATE.md](./CURRENT_STATE.md)             | The compact handoff: present milestone, verified capabilities, next action, and active release blockers                                               |
+| [DESIGN.md](./DESIGN.md)                           | The visual design system: palette, typography, layout, component treatment, and interface guardrails                                                  |
+| [PRODUCT.md](./PRODUCT.md)                         | The product contract: audience, game modes, draft rules, voting, sharing, brand, accessibility, and deferred scope                                    |
+| [ARCHITECTURE.md](./ARCHITECTURE.md)               | The system design: frontend boundaries, Cloudflare topology, WebSocket protocol, persistence, security, performance, testing, and hosting portability |
+| [CHAMPION_DATA.md](./CHAMPION_DATA.md)             | The champion-data contract: slot meanings, resource policy, portability tests, normalized schemas, patch sync, variants, and champion exceptions      |
+| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | The build order: twelve vertical slices with acceptance criteria for the Solo MVP and Private Lobby MVP                                               |
+| [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)     | The snapshot, Riot policy, registration, notice, and asset-eligibility release gates                                                                  |
+| [DEPLOYMENT.md](./DEPLOYMENT.md)                   | Cloudflare preview/production commands, rollback, headers, diagnostics, and cost guardrails                                                           |
+| [AGENTS.md](./AGENTS.md)                           | Operating instructions for coding agents working in this repository, including required reading and non-negotiable invariants                         |
+| [REPOSITORY_WORKFLOW.md](./REPOSITORY_WORKFLOW.md) | On-demand branch, staging, commit, push, handoff, and README-maintenance policy                                                                       |
 
 When documents overlap, `PRODUCT.md` owns player-facing intent, `CHAMPION_DATA.md` owns kit compatibility, and `ARCHITECTURE.md` owns system boundaries. `IMPLEMENTATION_PLAN.md` sequences the work, while `CURRENT_STATE.md` reports progress; neither overrides the contracts.
 
@@ -82,10 +88,11 @@ pnpm build:cloudflare
 pnpm preview
 ```
 
-The browser suite uses Playwright. Install its Chromium binary once on a new machine, then run:
+The browser suite uses Playwright across Chromium and WebKit, including offline refresh and axe WCAG A/AA checks. Install the browser
+binaries once on a new machine, then run:
 
 ```sh
-pnpm exec playwright install chromium
+pnpm exec playwright install chromium webkit
 pnpm test:e2e
 ```
 
@@ -105,9 +112,8 @@ release containing Riot data or assets.
 
 Cloudflare deployment preparation is included in the repository. Run `pnpm build:cloudflare` to
 build and verify the deployable static assets, or `pnpm run cloudflare:dev` for a local Worker
-smoke test. Public preview and production deployments are guarded by the Riot release checklist
-and explicit operator confirmations; no deployment URL is claimed until one exists. See
-[DEPLOYMENT.md](./DEPLOYMENT.md) for deployment, rollback, and monitoring guidance.
+smoke test. A Workers.dev deployment is online, but it is not a Slice 7 sign-off or Riot policy
+approval. See [DEPLOYMENT.md](./DEPLOYMENT.md) for deployment, rollback, and monitoring guidance.
 
 ## Core Rules
 
@@ -125,9 +131,11 @@ See [PRODUCT.md](./PRODUCT.md) and [CHAMPION_DATA.md](./CHAMPION_DATA.md) for th
 
 ## Riot Games and Asset Notice
 
-BuildChamp is an unofficial fan project and is not endorsed, sponsored, or operated by Riot Games. It is intended to be non-commercial in its initial releases. The repository contains a validated snapshot of Riot-provided champion data and references to default artwork; public use of these data or assets remains gated on the maintainer's policy and registration review.
+BuildChamp is an unofficial, non-commercial fan game and is not endorsed, sponsored, or operated by Riot Games. The repository contains a validated snapshot of Riot-provided champion data and references to default artwork. The maintainer reports that the product listing in Riot's Developer Portal is approved; review of the CommunityDragon references remains open.
 
-Before any public release using Riot data or assets, the maintainer must confirm that the product is eligible under Riot's then-current policies and register it through the Riot Developer Portal as required. Riot's current policies contain specific restrictions for games and apps using Riot intellectual property, so this documentation does not claim approval or guarantee eligibility.
+Riot's [Developer Relations policy explanation](https://support-developer.riotgames.com/hc/en-us/articles/22698591841939-General-Policies) describes prohibited games as simulators, recreations, or experiences difficult to distinguish from official Riot games, and allows completely free, original fan celebrations. BuildChamp is a free, original drafting game that does not simulate League play or resemble the League client. We assess it as plausibly within that allowance; this is a reading of the published policy, not Riot approval.
+
+Public champion quiz games such as [Champdle](https://www.champdle.com/about) and [LoLdle](https://apps.apple.com/us/app/loldle-official/id6449491946) provide comparisons, but their existence does not establish BuildChamp's permission or reveal their registration status. Riot's [League policy](https://support-developer.riotgames.com/hc/en-us/articles/22698698001939-League-of-Legends) still requires registration for products serving players, with or without documented API use. The snapshot also references some CommunityDragon images that are not named in Riot's listed asset sources. These remain release-review items.
 
 Any player-visible release must conspicuously include Riot's required notices, including:
 

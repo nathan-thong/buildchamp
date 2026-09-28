@@ -6,6 +6,7 @@ import { createSoundController, SoundContext, type SoundController } from '../li
 import { AppLink } from './AppLink';
 import { BrandMark } from './BrandMark';
 import { MuteControl } from './MuteControl';
+import { SiteFooter } from './SiteFooter';
 
 type AppShellProps = {
   readonly children: ReactNode;
@@ -79,18 +80,7 @@ export function AppShell({ children, currentRoute, storage }: AppShellProps) {
 
         <main id="main-content">{children}</main>
 
-        <footer className="site-footer">
-          <div className="site-footer__inner">
-            <div className="site-footer__brand">
-              <BrandMark className="site-footer__mark" />
-              <span>BuildChamp</span>
-            </div>
-            <p className="site-footer__notice">
-              Unofficial fan project. Not endorsed by Riot Games. Riot Games and associated
-              properties are trademarks or registered trademarks of Riot Games, Inc.
-            </p>
-          </div>
-        </footer>
+        <SiteFooter />
       </div>
     </SoundContext.Provider>
   );

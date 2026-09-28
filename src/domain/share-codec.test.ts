@@ -7,6 +7,7 @@ import {
   lockSelection,
   selectionForSlot,
   type Completion,
+  type RunState,
 } from './draft-engine';
 import {
   createSharePath,
@@ -16,7 +17,7 @@ import {
 } from './share-codec';
 
 function completeFixture(): Completion {
-  let state = createRun(NORMAL_DRAFT_FIXTURE, createSeededRandom(13));
+  let state: RunState = createRun(NORMAL_DRAFT_FIXTURE, createSeededRandom(13));
   const random = createSeededRandom(14);
 
   for (let lock = 0; lock < 6; lock += 1) {

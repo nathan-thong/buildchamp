@@ -2,7 +2,7 @@
 
 ## Delivery Strategy
 
-BuildChamp ships as complete vertical slices. The first release is a polished, untimed solo game that needs no backend. Private multiplayer is the second release. Public rankings, accounts, and monetization are outside this plan.
+BuildChamp ships as complete vertical slices. The first release is a polished, untimed solo champion-drafting game that needs no backend. Private multiplayer lobbies follow. Public build rankings are deferred; accounts and monetization remain outside this plan.
 
 Each slice must leave the application runnable, tested in proportion to its risk, and usable with real or clearly marked fixture data. A slice is complete only when its acceptance criteria pass.
 
@@ -88,9 +88,9 @@ Implement the rules independently of React, browser state, and Cloudflare.
 - Thousands of seeded/property-generated runs complete without invariant failure.
 - The engine has no React, DOM, storage, network, or Cloudflare dependency.
 
-## Slice 4 — Solo Gameplay
+## Slice 4 — Solo Draft
 
-Join the snapshot, engine, and interface into the first complete game.
+Join the snapshot, engine, and interface into the first complete solo game.
 
 ### Work
 
@@ -234,7 +234,7 @@ Add the server-authoritative room state machine and realtime connection layer.
 
 ## Slice 10 — Synchronized Draft and Shared Display
 
-Deliver the conversational Jackbox-inspired multiplayer draft.
+Deliver synchronized private drafting sessions and a shared display.
 
 ### Work
 
@@ -259,7 +259,7 @@ Deliver the conversational Jackbox-inspired multiplayer draft.
 
 ## Slice 11 — Reveal, Voting, Results, and Rematch
 
-Complete the private party-game loop.
+Complete private group reveals, voting, and rematches.
 
 ### Work
 

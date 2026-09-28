@@ -10,15 +10,15 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc -b --pretty false && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
-    "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.{ts,tsx}\" \"*.{js,ts,json,html}\" \"tests/**/*.{ts,tsx}\"",
-    "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.{ts,tsx}\" \"*.{js,ts,json,html}\" \"tests/**/*.{ts,tsx}\"",
+    "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.{js,ts,tsx}\" \"*.{js,ts,json,html}\" \"tests/**/*.{ts,tsx}\"",
+    "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.{js,ts,tsx}\" \"*.{js,ts,json,html}\" \"tests/**/*.{ts,tsx}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "vite build && playwright test",
     "sync:champion-data": "tsx scripts/sync-champion-data.ts",
     "check:cloudflare": "tsx scripts/check-cloudflare-deployment.ts",
     "check:release-gate": "tsx scripts/check-release-gate.ts",
@@ -37,6 +37,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.33.0",
     "@playwright/test": "^1.54.2",
     "@tailwindcss/vite": "^4.1.12",

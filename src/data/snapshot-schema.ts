@@ -422,6 +422,8 @@ export const RawSpellSchema = z
   })
   .passthrough();
 
+export type RawSpell = z.infer<typeof RawSpellSchema>;
+
 export const RawPassiveSchema = z
   .object({
     name: nonEmptyString,

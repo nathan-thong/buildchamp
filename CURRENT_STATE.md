@@ -1,32 +1,27 @@
 # Current State
 
-Last updated: 2026-09-26
+Last updated: 2026-09-28
 
 ## Now
 
-- **Phase:** Slice 8 Cloudflare Solo Deployment preparation is complete; Slice 7 QA and content review remains before public promotion. Slice 5 recovery, accessibility, sound, and reduced-motion gates are covered by the verified solo experience.
-- **Active milestone:** Snapshot-backed, untimed drafting is playable from `/solo` with inspectable offers/build state, provisional selection plus permanent locks, completion inspection, rematch, and local recovery.
-- **Next action:** Complete Slice 7 QA/content review and the Riot policy/registration gates, then authenticate Cloudflare and run the guarded preview smoke check; no public deployment is permitted before that review.
-- **Runtime status:** `/solo` uses the immutable 16.17.1 snapshot, adaptive legal drafting, recovery, irreversible locks, responsive details, a six-part reveal, and restrained audio after interaction. Completed drafts create identifier-only `/build/:payload` links; the shared route pins 15.17.1 or 16.17.1 and explains malformed/unavailable links. Variant labels appear only for champions with multiple draft variants; single-kit compatibility metadata stays hidden. Completed solo and shared results can copy a branded PNG share card when image clipboard support is available, with a link-copy fallback. The home board and `/build/demo` remain labelled fixtures. Cloudflare deployment uses a Worker-first SPA adapter with immutable caching, security headers, custom 404 handling, and failure-only diagnostics.
-
-## Settled Direction
-
-- Solo-first, untimed six-round draft; private friend lobbies follow. TypeScript, React, and Vite; Cloudflare Workers Static Assets initially.
-- Controlled, immutable Data Dragon snapshots; no gameplay-time data fetch. The Split Champion Board uses the documented navy/gold/teal visual system; see `DESIGN.md`.
-- Product contracts are `PRODUCT.md`, `CHAMPION_DATA.md`, and `ARCHITECTURE.md`.
+- **Phase:** Slice 7 technical QA and Slice 8 deployment preparation are complete locally. The maintainer reports that BuildChamp is listed as approved in the Riot Developer Portal; asset-source review and the recorded release decision remain open.
+- **Product:** The untimed, snapshot-backed `/solo` party game supports six rounds with irreversible locks, local recovery, completion, rematch, versioned result links, and PNG share cards. Private lobbies, voting, and build rankings remain planned.
+- **Next action:** Record the Developer Portal approval evidence, complete the CommunityDragon asset-source review and release decision, then publish the Slice 7/8 fixes and begin Slice 9.
+- **Live deployment:** Browser smoke checked 2026-09-28: `/`, `/solo`, `/build/demo`, and a valid `/build/:payload` result load directly. The deployed build still has the earlier short Riot footer and `/service-worker.js` returns the custom 404. Corrected notices and the offline shell remain local and uncommitted.
 
 ## Verified Repository State
 
-- The validated 16.17.1 snapshot contains 173 champions, 172 eligible; Aphelios is excluded. Reviewed exceptions are covered by regression tests.
-- Slice 4, the dependency refresh, the UI/UX refinement, Slice 5 recovery/audio work, Slice 6 shareable results, the PNG share-card refinement (`d61fca1`), and Slice 8 deployment preparation are committed on `main`, which tracks `origin/main`; no deployment exists.
-- Wrangler 4.131.2 is pinned with `wrangler.jsonc` preview/production targets, a frozen-install-safe pnpm layout, a retained-snapshot bundle check, and guarded deployment scripts. The preview dry run validates the Worker and `ASSETS` binding without publishing.
-- Verified with `pnpm install --frozen-lockfile`, typecheck, 82 unit tests, lint, format, build, bundle check, Wrangler dry run, and 15 Playwright journeys. A local Worker smoke test confirmed direct routes, immutable JS caching, security headers, and a 404 for missing file-like assets. Historical 15.17.1 and current 16.17.1 payloads render from pinned snapshots; the browser makes no mutable champion-data request. No deployment exists.
+- The 16.17.1 snapshot contains 173 champions, 172 eligible; Aphelios is excluded. Reviewed exceptions have source notes and regression coverage. The prior 15.17.1 snapshot is retained for share links.
+- The PNG share-card refinement (`d61fca1`) is committed on `main`, tracking `origin/main`; the current Slice 7/8 QA and offline-shell fixes have not been deployed.
+- Wrangler 4.131.2, Worker-first SPA routing, security headers, immutable asset caching, custom 404, retained-snapshot check, and guarded deploy scripts are present.
+- On 2026-09-28, typecheck, lint, format, Vite build, Cloudflare artifact check, and 84 unit tests passed. All 40 Playwright tests passed in Chromium and WebKit, including 17 journeys, axe A/AA scans, and offline refresh in each. WebKit's offline test stops the origin after caching, then reloads through its service worker.
+- Keyboard, focus, reduced motion, artwork failure, notice width, and mobile checks passed. Maintainer-tested Zen (Firefox-based) works; native Safari completed six locks. First choice appeared in a median 2.98 seconds across three cold runs at 390×844, 150 ms RTT, 200 KiB/s, and 4× CPU. A 320 px viewport passed.
+- The production build still reports a 2.9 MB JavaScript chunk (417 KB gzip) above Vite's advisory threshold.
 
-## Active Gates
+## Release Review
 
-- Public release using Riot data or assets requires confirmation of eligibility under Riot's then-current policies, required Developer Portal registration, and mandated player-visible notices.
-- No software license has been selected. Do not accept outside contributions or imply reuse rights until the maintainer chooses one.
+- Riot's Developer Relations explanation allows completely free, original fan celebrations and describes the prohibited games as simulators, recreations, or experiences hard to distinguish from official games. BuildChamp looks plausibly within that allowance at its current scale; this is an inference, not Riot approval. Champdle and LoLdle operate publicly, but their permissions are unknown.
+- Riot's League policy requires player-facing product registration even without API use. The maintainer reports the Developer Portal lists BuildChamp as approved (2026-09-28); this status has not been independently checked here. The snapshot also contains 38 CommunityDragon image references not explicitly named in Riot's listed asset sources. The release gate remains closed pending asset review and a recorded decision. No gameplay redesign is indicated by the research.
+- No software license has been chosen. Do not imply reuse rights or accept outside contributions.
 
-## Update Rule
-
-Replace stale facts here whenever the milestone, runnable capability, next action, verification status, deployment, data snapshot, or blocker changes. Keep this file factual and under 500 words; detailed decisions belong in their owning documents.
+Contracts: `PRODUCT.md`, `CHAMPION_DATA.md`, `ARCHITECTURE.md`, and `IMPLEMENTATION_PLAN.md`.

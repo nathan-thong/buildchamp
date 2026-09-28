@@ -10,3 +10,6 @@
 
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
+
+/service-worker.js
+  Cache-Control: no-cache

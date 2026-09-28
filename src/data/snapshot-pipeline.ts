@@ -996,7 +996,7 @@ function buildEligibilityIndexes(champions: readonly Champion[]) {
         .map((component) => component.id)
         .sort(),
     ]),
-  );
+  ) as Record<Slot, string[]>;
 
   return {
     eligibleChampionIds,
