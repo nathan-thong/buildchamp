@@ -38,30 +38,46 @@ The corrected non-endorsement and Legal Jibber Jabber notices are in the local a
 error state, and 404 page. A browser smoke check on 2026-09-28 confirmed the live Workers.dev site
 loads `/`, `/solo`, `/build/demo`, and a valid versioned `/build/:payload` result directly, but
 still has the earlier short footer wording and returns the custom 404 for `/service-worker.js`.
-The current local notice and offline-shell changes have not been deployed.
+HTTP verification on 2026-10-09 supersedes that deployment observation: `/service-worker.js`
+returns 200 and the live JavaScript exactly matches the current local build, including the corrected
+notices and offline shell. Local verification on 2026-10-10 passed typecheck, lint, format, 99 unit
+tests, Vite build, Cloudflare artifact check, and all 40 Chromium/WebKit browser tests. Three
+additional local Wrangler/SQLite Durable Object tests passed, including reconnect and versioned-state
+restoration after restarting the local Worker; a preview Worker deploy dry-run also passed. No public
+deployment or release gate change occurred.
 
-Policy review recorded 2026-09-28: Riot's [Developer Relations explanation](https://support-developer.riotgames.com/hc/en-us/articles/22698591841939-General-Policies)
-describes prohibited games as simulators, recreations, or products difficult to distinguish from
-official Riot games, and says completely free, original fan celebrations can be acceptable.
-BuildChamp's original, non-commercial six-round drafting game does not simulate League play or
-resemble the client. On that published explanation, a small-scale fan-project fit looks plausible;
-this is an assessment, not Riot approval. [Champdle](https://www.champdle.com/about) and
-[LoLdle](https://apps.apple.com/us/app/loldle-official/id6449491946) publicly offer champion quiz
-games with non-endorsement notices, but their registration or licence status is not public evidence
-for BuildChamp. Riot's [League policy](https://support-developer.riotgames.com/hc/en-us/articles/22698698001939-League-of-Legends)
-still requires registration for player-facing products even without Riot API use. The current
-snapshot has 38 image references to CommunityDragon for default Fiddlesticks art and transformed
-ability icons; CommunityDragon is not named in Riot's listed asset sources. The maintainer reports
-that BuildChamp is listed as approved in the Developer Portal (2026-09-28); this status has not
-been independently checked here. Registration is therefore treated as complete, while the
-asset-source review remains open. No gameplay redesign is indicated by this review.
+Policy and asset review updated 2026-10-09. Riot's [General Policies](https://support-developer.riotgames.com/hc/en-us/articles/22698591841939-General-Policies)
+(updated 2025-05-29) says not to develop games using Riot IP, while also allowing completely free
+fan celebrations built around original ideas. Riot's [Legal Jibber Jabber](https://www.riotgames.com/en/legal)
+(last updated 2018-08) describes a limited non-commercial fan-project license but separately says
+not to use Riot IP such as character appearances, abilities, or icons in a game or app. Riot's
+[League policy](https://support-developer.riotgames.com/hc/en-us/articles/22698698001939-League-of-Legends)
+(updated 2025-03-11) requires registration for player-facing products regardless of API use and
+describes Data Dragon game data and assets as available to third-party developers. These published
+rules leave an unresolved question for this particular free, original browser party game; this review
+does not conclude that it is eligible or ineligible. The maintainer reports Developer Portal approval
+on 2026-09-28, but no approval record or product-specific policy response is available in this
+repository, so registration and policy eligibility are not independently evidenced here.
+
+The 16.17.1 snapshot contains 38 unique image URLs hosted by
+[CommunityDragon](https://communitydragon.org/documentation/assets): 36 transformed ability icons
+(Elise 6, Gnar 8, Jayce 6, Kayn 10, Nidalee 6) and Fiddlesticks default splash and loading art (2).
+The references are version-scoped under `/16.17/`. CommunityDragon's asset documentation describes
+files exported from game and client paths; its public asset documentation is a source-provenance
+reference, not Riot authorization. Riot's reviewed policy pages name Data Dragon, Press Kit, and other
+game-specific asset sets, but do not name CommunityDragon. The provenance inventory is complete;
+Riot eligibility for these 38 references remains unconfirmed. Public examples such as
+[Champdle](https://www.champdle.com/about) and
+[LoLdle](https://apps.apple.com/us/app/loldle-official/id6449491946) do not establish BuildChamp's
+registration or asset eligibility. No gameplay redesign is indicated by this source review.
 
 ## Riot policy and asset gate
 
 - [x] Assess BuildChamp against Riot Games' then-current game/IP policy and record the rationale
       for its free, original drafting game.
-- [x] Complete Riot Developer Portal product registration; the maintainer reports the product is
-      listed as approved (2026-09-28).
+- [ ] Verify Riot Developer Portal product registration and retain its approval record; the
+      maintainer reports the product is listed as approved (2026-09-28), but no evidence is in this
+      repository.
 - [ ] Confirm the release uses only approved default champion data, icons, and artwork; no skins,
       community-uploaded imagery, or unreviewed assets are included.
 - [x] Confirm every player-visible surface includes the required Riot non-endorsement notice.

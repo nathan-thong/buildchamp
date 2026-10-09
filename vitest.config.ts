@@ -13,6 +13,6 @@ export default defineConfig({
     },
     setupFiles: './src/test/setup.ts',
     css: true,
-    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.ts'],
+    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.ts', 'worker/**/*.test.ts'],
   },
 });

@@ -3,9 +3,10 @@
 The production Workers.dev site is live at
 [buildchamp.nathan-thong.workers.dev](https://buildchamp.nathan-thong.workers.dev). A browser
 smoke check on 2026-09-28 confirmed direct navigation to `/`, `/solo`, `/build/demo`, and a valid
-versioned `/build/:payload` result. The deployed version still has the earlier short Riot footer,
-and `/service-worker.js` returns the custom 404. The updated notices and offline application shell
-in the current worktree have not been deployed.
+versioned `/build/:payload` result. HTTP verification on 2026-10-09 confirmed `/service-worker.js` returns 200 and the live
+JavaScript exactly matches the current local build, including updated notices and the offline
+application shell. This was an artifact check, not a new live browser journey. The live release is
+still solo-only: the local Slice 9 room API and SQLite-backed Durable Object have not been deployed.
 
 The deployed site does not satisfy the open Riot release gate. New public releases remain blocked
 until the asset-source review and release decision are recorded.
@@ -30,7 +31,14 @@ custom-404 checks without publishing anything:
 ```sh
 pnpm run build:cloudflare
 pnpm run cloudflare:dev
+pnpm test:e2e:multiplayer
 ```
+
+The multiplayer tests start Wrangler in local mode with isolated Durable Object stores. They cover
+the room API, authenticated WebSocket transport, role projections, malformed and oversized
+envelopes, rate limits, reconnect, and versioned SQLite state restoration after a Worker restart.
+They use local Wrangler and do not publish or require Cloudflare credentials. The one-hour expiry
+boundary has unit coverage; the alarm's wall-clock cleanup is not exercised by this command.
 
 ## Preview deployment
 
@@ -86,7 +94,8 @@ Use Workers Observability for request status, uncaught errors, and deployment di
 sampling rate low in production unless an incident requires a temporary increase. Do not add custom
 logs containing share payloads, nicknames, build choices, or other player data.
 
-The initial deployment uses Workers Static Assets and `workers.dev` only. It adds no database,
-Durable Object, queue, analytics, or account requirement, so normal solo MVP traffic stays within
-the intended low-cost static hosting shape. Review current Cloudflare limits and billing before
-public promotion.
+The currently deployed solo release uses Workers Static Assets and `workers.dev`. This repository's
+local multiplayer foundation adds a SQLite-backed Durable Object class through the `v1` migration;
+it will require that migration and the `LOBBIES` binding on a future approved deployment. Solo play
+continues to require no backend, account, or behavioural analytics. Review current Cloudflare limits
+and billing before public promotion.

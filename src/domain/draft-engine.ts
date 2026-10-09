@@ -285,6 +285,75 @@ export function getLegalOffers(snapshot: ChampionSnapshot, state: RunState): rea
   return findLegalOffers(snapshot, position, context);
 }
 
+/**
+ * Select one Same Champs offer that is safe for every drafting player, while
+ * preserving each player's private set of selectable components.
+ */
+export function generateSharedOffers(
+  snapshot: ChampionSnapshot,
+  states: readonly DraftingRunState[],
+  random: RandomSource = Math.random,
+): readonly Offer[] {
+  if (states.length < 2) {
+    throw new DraftEngineError(
+      'invalid-state',
+      'A shared offer requires at least two active drafting players.',
+    );
+  }
+
+  for (const state of states) {
+    assertRunState(snapshot, state);
+  }
+
+  const context = createSearchContext(snapshot);
+  const legalOffersByPlayer = states.map((state) =>
+    findLegalOffers(snapshot, positionFromRun(state), context),
+  );
+  const commonOffers = (legalOffersByPlayer[0] ?? []).filter((offer) =>
+    legalOffersByPlayer.every((offers) => offers.some((candidate) => candidate.id === offer.id)),
+  );
+  if (commonOffers.length === 0) {
+    throw new DraftEngineError(
+      'no-legal-offer',
+      'No shared champion offer can complete a round for every active player.',
+    );
+  }
+
+  const offersByChampion = new Map<string, Offer[]>();
+  for (const offer of commonOffers) {
+    const championOffers = offersByChampion.get(offer.championId) ?? [];
+    championOffers.push(offer);
+    offersByChampion.set(offer.championId, championOffers);
+  }
+
+  const championGroups = [...offersByChampion.entries()]
+    .map(([championId, offers]) => ({
+      championId,
+      weight: offers[0]?.champion.randomWeight ?? 0,
+      offers,
+    }))
+    .sort((left, right) => left.championId.localeCompare(right.championId));
+  const selectedChampion = weightedPick(championGroups, random);
+  const variants = [...selectedChampion.offers].sort((left, right) =>
+    left.variantId.localeCompare(right.variantId),
+  );
+  const selectedOffer = variants[randomIndex(variants.length, random)];
+  if (!selectedOffer) {
+    throw new DraftEngineError('no-legal-offer', 'Shared offer selection returned no variant.');
+  }
+
+  return legalOffersByPlayer.map((offers) => {
+    const playerOffer = offers.find((offer) => offer.id === selectedOffer.id);
+    if (!playerOffer) {
+      throw new DraftEngineError(
+        'no-legal-offer',
+        'Selected shared offer is not legal for every active player.',
+      );
+    }
+    return playerOffer;
+  });
+}
+
 /** Generate the next adaptive offer using injected randomness. */
 export function generateOffer(
   snapshot: ChampionSnapshot,

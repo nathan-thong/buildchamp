@@ -1,27 +1,26 @@
 # Current State
 
-Last updated: 2026-09-28
+Last updated: 2026-10-10
 
 ## Now
 
-- **Phase:** Slice 7 technical QA and Slice 8 deployment preparation are complete locally. The maintainer reports that BuildChamp is listed as approved in the Riot Developer Portal; asset-source review and the recorded release decision remain open.
-- **Product:** The untimed, snapshot-backed `/solo` party game supports six rounds with irreversible locks, local recovery, completion, rematch, versioned result links, and PNG share cards. Private lobbies, voting, and build rankings remain planned.
-- **Next action:** Record the Developer Portal approval evidence, complete the CommunityDragon asset-source review and release decision, then publish the Slice 7/8 fixes and begin Slice 9.
-- **Live deployment:** Browser smoke checked 2026-09-28: `/`, `/solo`, `/build/demo`, and a valid `/build/:payload` result load directly. The deployed build still has the earlier short Riot footer and `/service-worker.js` returns the custom 404. Corrected notices and the offline shell remain local and uncommitted.
+- **Phase:** Slice 9's server-authoritative lobby foundation is implemented and verified locally. Slice 10 is next for participant screens, synchronized draft locks and deadlines, and the shared display experience; reveal, voting, and rematch remain later work.
+- **Product:** The untimed snapshot-backed `/solo` route remains client-side, with irreversible locks, recovery, completion, rematch, and versioned result links. The local Worker adds room creation/join, readiness and host settings, role-scoped projections, reconnect authentication, host migration, idempotent commands, and one-hour lobby expiry.
+- **Live deployment:** The public Workers.dev release remains solo-only. `/service-worker.js` returned 200 and its JavaScript matched the current local build on 2026-10-09. The multiplayer Worker and Durable Object changes have not been deployed.
+- **Next action:** Continue Slice 10 locally. Separately, the public-release gate remains open pending retained Developer Portal approval evidence and confirmation of eligibility for the 38 CommunityDragon image references; see `RELEASE_CHECKLIST.md`.
 
 ## Verified Repository State
 
-- The 16.17.1 snapshot contains 173 champions, 172 eligible; Aphelios is excluded. Reviewed exceptions have source notes and regression coverage. The prior 15.17.1 snapshot is retained for share links.
-- The PNG share-card refinement (`d61fca1`) is committed on `main`, tracking `origin/main`; the current Slice 7/8 QA and offline-shell fixes have not been deployed.
-- Wrangler 4.131.2, Worker-first SPA routing, security headers, immutable asset caching, custom 404, retained-snapshot check, and guarded deploy scripts are present.
-- On 2026-09-28, typecheck, lint, format, Vite build, Cloudflare artifact check, and 84 unit tests passed. All 40 Playwright tests passed in Chromium and WebKit, including 17 journeys, axe A/AA scans, and offline refresh in each. WebKit's offline test stops the origin after caching, then reloads through its service worker.
-- Keyboard, focus, reduced motion, artwork failure, notice width, and mobile checks passed. Maintainer-tested Zen (Firefox-based) works; native Safari completed six locks. First choice appeared in a median 2.98 seconds across three cold runs at 390×844, 150 ms RTT, 200 KiB/s, and 4× CPU. A 320 px viewport passed.
-- The production build still reports a 2.9 MB JavaScript chunk (417 KB gzip) above Vite's advisory threshold.
+- The 16.17.1 snapshot contains 173 champions, 172 eligible; Aphelios is excluded. Reviewed exceptions have source notes and regression coverage. Snapshot 15.17.1 remains for existing share links.
+- `worker/index.ts` provides versioned room create/info/join/WebSocket routes. `BuildChampLobby` owns each room in SQLite-backed Durable Object storage, uses hibernatable WebSockets, validates versioned envelopes and persisted state, and projects only champion identity/progress to shared displays. Private player projections retain only that player's offer.
+- Lobby rules cover 2–8 player seats, 20 spectators, one display, readiness, Same/Random offer generation, host-only controls, late spectator joins, reconnect tokens, host migration, idempotency, bounded input/rates, and one-hour expiry. Round locking and gameplay deadlines are Slice 10 work; the expiry alarm is implemented here.
+- Local verification on 2026-10-10: 99 unit tests; typecheck, lint, format, Cloudflare artifact check, Vite build, and preview Worker `wrangler deploy --dry-run` passed. Three local Wrangler/SQLite tests passed for HTTP and WebSocket auth, role projections, idle-socket commands, malformed/oversized input, rate limits, host migration/reconnect, and versioned SQLite restore across a Worker restart. All 40 Chromium/WebKit solo browser tests passed. The expiry boundary is unit-tested. Alarm scheduling is not directly asserted, and one-hour alarm cleanup was not run end-to-end; no hour-long wait was performed.
+- The production build still reports a 2.9 MB JavaScript chunk (about 415 KB gzip), above Vite's advisory threshold.
 
 ## Release Review
 
-- Riot's Developer Relations explanation allows completely free, original fan celebrations and describes the prohibited games as simulators, recreations, or experiences hard to distinguish from official games. BuildChamp looks plausibly within that allowance at its current scale; this is an inference, not Riot approval. Champdle and LoLdle operate publicly, but their permissions are unknown.
-- Riot's League policy requires player-facing product registration even without API use. The maintainer reports the Developer Portal lists BuildChamp as approved (2026-09-28); this status has not been independently checked here. The snapshot also contains 38 CommunityDragon image references not explicitly named in Riot's listed asset sources. The release gate remains closed pending asset review and a recorded decision. No gameplay redesign is indicated by the research.
+- Riot's published policy materials contain both restrictions on games using Riot IP and an allowance for completely free, original fan celebrations. How those statements apply to BuildChamp remains unresolved; this review makes no legal conclusion.
+- The maintainer reports Riot Developer Portal approval dated 2026-09-28, but the record is not in this repository. The asset provenance inventory is complete: 36 transformed ability icons and two Fiddlesticks default-art URLs reference version-scoped CommunityDragon assets. Their Riot eligibility remains unconfirmed. Release and deployment gates stay closed until the maintainer records the evidence and decision.
 - No software license has been chosen. Do not imply reuse rights or accept outside contributions.
 
 Contracts: `PRODUCT.md`, `CHAMPION_DATA.md`, `ARCHITECTURE.md`, and `IMPLEMENTATION_PLAN.md`.

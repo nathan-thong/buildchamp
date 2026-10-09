@@ -10,6 +10,7 @@ import {
   currentRound,
   DRAFT_SLOT_ORDER,
   freshRematch,
+  generateSharedOffers,
   getLegalOffers,
   hasLegalContinuation,
   hasLegalContinuationAfterSelection,
@@ -94,6 +95,53 @@ describe('draft engine', () => {
         (offer) => offer.championId === 'form-champ',
       ),
     ).toHaveLength(2);
+  });
+
+  it('selects one Same Champs offer legal for every player with private selectable slots', () => {
+    let firstPlayer: RunState = createRun(NORMAL_DRAFT_FIXTURE, createSeededRandom(31));
+    let secondPlayer: RunState = createRun(NORMAL_DRAFT_FIXTURE, createSeededRandom(47));
+    if (firstPlayer.status !== 'drafting' || secondPlayer.status !== 'drafting') {
+      throw new Error('Both fixtures should be drafting.');
+    }
+
+    firstPlayer = lockSelection(
+      NORMAL_DRAFT_FIXTURE,
+      firstPlayer,
+      selectionForSlot(firstPlayer.offer, 'body'),
+      createSeededRandom(32),
+    );
+    secondPlayer = lockSelection(
+      NORMAL_DRAFT_FIXTURE,
+      secondPlayer,
+      selectionForSlot(secondPlayer.offer, 'q'),
+      createSeededRandom(48),
+    );
+    if (firstPlayer.status !== 'drafting' || secondPlayer.status !== 'drafting') {
+      throw new Error('Both fixture runs should have one lock remaining to draft.');
+    }
+
+    const offers = generateSharedOffers(
+      NORMAL_DRAFT_FIXTURE,
+      [firstPlayer, secondPlayer],
+      createSeededRandom(49),
+    );
+
+    expect(offers).toHaveLength(2);
+    expect(offers[0]?.id).toBe(offers[1]?.id);
+    expect(offers[0]?.selectableSlots).not.toContain('body');
+    expect(offers[1]?.selectableSlots).not.toContain('q');
+    for (const [index, offer] of offers.entries()) {
+      const state = index === 0 ? firstPlayer : secondPlayer;
+      for (const slot of offer.selectableSlots) {
+        expect(
+          hasLegalContinuationAfterSelection(
+            NORMAL_DRAFT_FIXTURE,
+            state,
+            selectionForSlot(offer, slot),
+          ),
+        ).toBe(true);
+      }
+    }
   });
 
   it('never repeats a base champion across variants', () => {

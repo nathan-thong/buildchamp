@@ -14,10 +14,13 @@
     "types": ["node"]
   },
   "include": [
+    ".wrangler/worker-configuration.d.ts",
     "vite.config.ts",
     "vitest.config.ts",
     "playwright.config.ts",
+    "playwright.multiplayer.config.ts",
     "scripts/**/*.ts",
-    "worker/**/*.ts"
+    "worker/**/*.ts",
+    "tests/multiplayer/**/*.ts"
   ]
 }

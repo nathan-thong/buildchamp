@@ -1,0 +1,825 @@
+import {
+  createRun,
+  generateSharedOffers,
+  restoreDraftingRun,
+  serializeDraftingRun,
+  type DraftingRunState,
+  type Offer,
+  type RandomSource,
+} from '../../src/domain/draft-engine.ts';
+import { DRAFT_SLOT_ORDER } from '../../src/domain/draft-engine.ts';
+import type { ChampionSnapshot } from '../../src/data/snapshot-schema.ts';
+import { PersistedDraftingRunSchema } from '../../src/lib/solo-run-storage.ts';
+
+import {
+  LOBBY_EXPIRY_MS,
+  LOBBY_PROTOCOL_VERSION,
+  LOBBY_STATE_VERSION,
+  MAX_RECENT_COMMANDS,
+  LobbyProjectionSchema,
+  LobbyStateSchema,
+  OfferProjectionSchema,
+  ParticipantSchema,
+  PublicOfferIdentitySchema,
+  type ClientCommand,
+  type JoinLobbyRequest,
+  type LobbyParticipant,
+  type LobbyProjection,
+  type LobbyRole,
+  type LobbySettings,
+  type LobbyState,
+  type OfferProjection,
+  type PublicOfferIdentity,
+} from './schemas.ts';
+
+const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const BLOCKED_NICKNAME_WORDS = new Set([
+  'asshole',
+  'bastard',
+  'bitch',
+  'bullshit',
+  'cunt',
+  'dick',
+  'fuck',
+  'fucking',
+  'shit',
+  'slut',
+  'whore',
+]);
+
+const BIDI_CONTROLS = /[\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
+const WORDS = /[\p{L}\p{N}]+/gu;
+
+export type DraftMode = LobbySettings['mode'];
+
+export type LobbyCommandActor = Readonly<{
+  participantId: string;
+  connectionId: string;
+}>;
+
+export type LobbyCommandContext = Readonly<{
+  now: number;
+  snapshot: ChampionSnapshot;
+  random: RandomSource;
+}>;
+
+export type LobbyCommandFailure = Readonly<{
+  ok: false;
+  state: LobbyState;
+  commandId?: string;
+  code:
+    | 'stale_revision'
+    | 'unauthorized'
+    | 'wrong_phase'
+    | 'not_enough_ready_players'
+    | 'participant_not_found'
+    | 'offer_generation_failed';
+  message: string;
+}>;
+
+export type LobbyCommandSuccess = Readonly<{
+  ok: true;
+  state: LobbyState;
+  commandId: string;
+  appliedRevision: number;
+  duplicate: boolean;
+  changed: boolean;
+  removedParticipantId?: string;
+}>;
+
+export type LobbyCommandResult = LobbyCommandFailure | LobbyCommandSuccess;
+
+export class LobbyStateError extends Error {
+  readonly code:
+    | 'invalid_nickname'
+    | 'nickname_prohibited'
+    | 'display_full'
+    | 'player_capacity_full'
+    | 'spectator_capacity_full'
+    | 'participant_exists'
+    | 'invalid_state';
+
+  constructor(code: LobbyStateError['code'], message: string) {
+    super(message);
+    this.name = 'LobbyStateError';
+    this.code = code;
+  }
+}
+
+export function generateRoomCode(random: RandomSource): string {
+  return Array.from({ length: 6 }, () => {
+    const value = nextRandom(random);
+    const index = Math.floor(value * ROOM_CODE_ALPHABET.length);
+    return ROOM_CODE_ALPHABET[index] as string;
+  }).join('');
+}
+
+/** Normalize visible text and reject control characters and common profanity. */
+export function validateNickname(input: string): string {
+  if (hasControlCharacters(input) || BIDI_CONTROLS.test(input)) {
+    throw new LobbyStateError(
+      'invalid_nickname',
+      'Use 2–16 visible characters without control characters.',
+    );
+  }
+
+  const nickname = input.normalize('NFC').trim().replace(/\s+/gu, ' ');
+  const length = visibleCharacterLength(nickname);
+  if (length < 2 || length > 16) {
+    throw new LobbyStateError('invalid_nickname', 'Nicknames must be 2–16 visible characters.');
+  }
+
+  const normalizedWords = nickname.normalize('NFKC').toLocaleLowerCase('en-US').match(WORDS);
+  if (normalizedWords?.some((word) => BLOCKED_NICKNAME_WORDS.has(word))) {
+    throw new LobbyStateError('nickname_prohibited', 'Choose a nickname without profanity.');
+  }
+
+  return nickname;
+}
+
+export function createLobbyState(
+  input: Readonly<{
+    roomCode: string;
+    snapshotVersion: string;
+    hostParticipantId: string;
+    hostNickname: string;
+    reconnectTokenHash: string;
+    now: number;
+  }>,
+): LobbyState {
+  const host = ParticipantSchema.parse({
+    id: input.hostParticipantId,
+    nickname: validateNickname(input.hostNickname),
+    role: 'host',
+    ready: false,
+    isConnected: false,
+    connectionId: null,
+    connectedAt: null,
+    joinedAt: input.now,
+    reconnectTokenHash: input.reconnectTokenHash,
+  });
+
+  return LobbyStateSchema.parse({
+    schemaVersion: LOBBY_STATE_VERSION,
+    protocolVersion: LOBBY_PROTOCOL_VERSION,
+    snapshotVersion: input.snapshotVersion,
+    roomCode: input.roomCode,
+    revision: 1,
+    phase: 'waiting',
+    hostParticipantId: host.id,
+    participants: [host],
+    settings: {
+      mode: 'same',
+      speed: 'standard',
+      revealOrder: 'staged',
+    },
+    draftsByParticipantId: {},
+    recentCommands: [],
+    createdAt: input.now,
+    lastActivityAt: input.now,
+    expiresAt: input.now + LOBBY_EXPIRY_MS,
+  });
+}
+
+export function addLobbyParticipant(
+  state: LobbyState,
+  input: JoinLobbyRequest,
+): Readonly<{ state: LobbyState; participant: LobbyParticipant }> {
+  if (state.participants.some((participant) => participant.id === input.participantId)) {
+    throw new LobbyStateError(
+      'participant_exists',
+      'This participant has already joined the room.',
+    );
+  }
+
+  const requestedRole = input.requestedRole;
+  let role: LobbyRole;
+  let nickname: string;
+
+  if (requestedRole === 'display') {
+    if (state.participants.some((participant) => participant.role === 'display')) {
+      throw new LobbyStateError('display_full', 'This room already has a shared display.');
+    }
+    role = 'display';
+    nickname = uniqueNickname('Shared display', state.participants);
+  } else {
+    const baseNickname = validateNickname(input.nickname ?? '');
+    nickname = uniqueNickname(baseNickname, state.participants);
+    const playerCount = state.participants.filter(isDraftingPlayer).length;
+    role =
+      requestedRole === 'player' && state.phase === 'waiting' && playerCount < 8
+        ? 'player'
+        : 'spectator';
+
+    if (role === 'spectator' && spectatorCount(state) >= 20) {
+      throw new LobbyStateError(
+        'spectator_capacity_full',
+        'This room has reached its spectator limit.',
+      );
+    }
+    if (requestedRole === 'player' && state.phase === 'waiting' && playerCount >= 8) {
+      role = 'spectator';
+      if (spectatorCount(state) >= 20) {
+        throw new LobbyStateError(
+          'spectator_capacity_full',
+          'This room has reached its spectator limit.',
+        );
+      }
+    }
+  }
+
+  const participant = ParticipantSchema.parse({
+    id: input.participantId,
+    nickname,
+    role,
+    ready: false,
+    isConnected: false,
+    connectionId: null,
+    connectedAt: null,
+    joinedAt: input.now,
+    reconnectTokenHash: input.reconnectTokenHash,
+  });
+  const nextState = touchState(
+    {
+      ...state,
+      participants: [...state.participants, participant],
+    },
+    input.now,
+  );
+
+  return { state: nextState, participant };
+}
+
+export function connectLobbyParticipant(
+  state: LobbyState,
+  participantId: string,
+  connectionId: string,
+  now: number,
+): LobbyState {
+  const index = state.participants.findIndex((participant) => participant.id === participantId);
+  const participant = state.participants[index];
+  if (!participant) {
+    throw new LobbyStateError('invalid_state', 'Participant is no longer in this room.');
+  }
+
+  const participants = [...state.participants];
+  participants[index] = {
+    ...participant,
+    isConnected: true,
+    connectionId,
+    connectedAt: now,
+  };
+
+  return touchState({ ...state, participants }, now);
+}
+
+export function disconnectLobbyParticipant(
+  state: LobbyState,
+  participantId: string,
+  connectionId: string,
+  now: number,
+): LobbyState {
+  const index = state.participants.findIndex((participant) => participant.id === participantId);
+  const participant = state.participants[index];
+  if (!participant || !participant.isConnected || participant.connectionId !== connectionId) {
+    return state;
+  }
+
+  const participants = [...state.participants];
+  participants[index] = {
+    ...participant,
+    isConnected: false,
+    connectionId: null,
+    connectedAt: null,
+  };
+
+  let hostParticipantId = state.hostParticipantId;
+  if (participant.role === 'host') {
+    const nextHost = participants
+      .filter((candidate) => candidate.role === 'player' && candidate.isConnected)
+      .sort(
+        (left, right) =>
+          (left.connectedAt ?? Number.MAX_SAFE_INTEGER) -
+            (right.connectedAt ?? Number.MAX_SAFE_INTEGER) ||
+          left.joinedAt - right.joinedAt ||
+          left.id.localeCompare(right.id),
+      )[0];
+
+    if (nextHost) {
+      const formerHostIndex = participants.findIndex(
+        (candidate) => candidate.id === participant.id,
+      );
+      const nextHostIndex = participants.findIndex((candidate) => candidate.id === nextHost.id);
+      const formerHost = participants[formerHostIndex];
+      const promotedPlayer = participants[nextHostIndex];
+      if (formerHost && promotedPlayer) {
+        participants[formerHostIndex] = { ...formerHost, role: 'player' };
+        participants[nextHostIndex] = { ...promotedPlayer, role: 'host' };
+        hostParticipantId = nextHost.id;
+      }
+    }
+  }
+
+  return touchState({ ...state, participants, hostParticipantId }, now);
+}
+
+export function handleLobbyCommand(
+  state: LobbyState,
+  actor: LobbyCommandActor,
+  command: ClientCommand,
+  context: LobbyCommandContext,
+): LobbyCommandResult {
+  const participant = state.participants.find((candidate) => candidate.id === actor.participantId);
+  if (!participant || !participant.isConnected || participant.connectionId !== actor.connectionId) {
+    return commandFailure(
+      state,
+      'unauthorized',
+      'This connection no longer controls a participant.',
+      command,
+    );
+  }
+
+  const recentCommand = state.recentCommands.find(
+    (item) => item.participantId === actor.participantId && item.commandId === command.commandId,
+  );
+  if (recentCommand) {
+    return {
+      ok: true,
+      state,
+      commandId: command.commandId,
+      appliedRevision: recentCommand.appliedRevision,
+      duplicate: true,
+      changed: false,
+    };
+  }
+
+  if (command.roomRevision !== state.revision) {
+    return commandFailure(
+      state,
+      'stale_revision',
+      'The room changed. Use the latest room state.',
+      command,
+    );
+  }
+
+  if (command.type === 'player.ready') {
+    if (!isDraftingPlayer(participant)) {
+      return commandFailure(
+        state,
+        'unauthorized',
+        'Only drafting players can change readiness.',
+        command,
+      );
+    }
+    if (state.phase !== 'waiting') {
+      return commandFailure(
+        state,
+        'wrong_phase',
+        'Readiness can only change in the waiting room.',
+        command,
+      );
+    }
+    if (participant.ready === command.payload.ready) {
+      return commandSuccess(state, actor.participantId, command, false);
+    }
+    const participants = state.participants.map((candidate) =>
+      candidate.id === participant.id ? { ...candidate, ready: command.payload.ready } : candidate,
+    );
+    return commandSuccess(
+      touchState({ ...state, participants }, context.now),
+      actor.participantId,
+      command,
+      true,
+    );
+  }
+
+  if (command.type === 'host.settings') {
+    if (participant.role !== 'host') {
+      return commandFailure(
+        state,
+        'unauthorized',
+        'Only the host can change room settings.',
+        command,
+      );
+    }
+    if (state.phase !== 'waiting') {
+      return commandFailure(
+        state,
+        'wrong_phase',
+        'Room settings are locked after drafting starts.',
+        command,
+      );
+    }
+    if (settingsEqual(state.settings, command.payload)) {
+      return commandSuccess(state, actor.participantId, command, false);
+    }
+    return commandSuccess(
+      touchState({ ...state, settings: command.payload }, context.now),
+      actor.participantId,
+      command,
+      true,
+    );
+  }
+
+  if (command.type === 'host.remove') {
+    if (participant.role !== 'host') {
+      return commandFailure(
+        state,
+        'unauthorized',
+        'Only the host can remove participants.',
+        command,
+      );
+    }
+    const target = state.participants.find(
+      (candidate) => candidate.id === command.payload.participantId,
+    );
+    if (!target || target.role === 'host') {
+      return commandFailure(
+        state,
+        'participant_not_found',
+        'That participant cannot be removed.',
+        command,
+      );
+    }
+    const participants = state.participants.filter((candidate) => candidate.id !== target.id);
+    const draftsByParticipantId = { ...state.draftsByParticipantId };
+    delete draftsByParticipantId[target.id];
+    return {
+      ...commandSuccess(
+        touchState({ ...state, participants, draftsByParticipantId }, context.now),
+        actor.participantId,
+        command,
+        true,
+      ),
+      removedParticipantId: target.id,
+    };
+  }
+
+  if (command.type === 'host.start') {
+    if (participant.role !== 'host') {
+      return commandFailure(state, 'unauthorized', 'Only the host can start the draft.', command);
+    }
+    if (state.phase !== 'waiting') {
+      return commandFailure(state, 'wrong_phase', 'This room has already started.', command);
+    }
+    const readyPlayers = state.participants.filter(
+      (candidate) => isDraftingPlayer(candidate) && candidate.ready,
+    );
+    if (readyPlayers.length < 2) {
+      return commandFailure(
+        state,
+        'not_enough_ready_players',
+        'At least two players must be ready before the host can start.',
+        command,
+      );
+    }
+
+    try {
+      const playerIds = state.participants
+        .filter(isDraftingPlayer)
+        .map((candidate) => candidate.id);
+      const draftsByParticipantId = createInitialDrafts(
+        context.snapshot,
+        playerIds,
+        state.settings.mode,
+        context.random,
+      );
+      return commandSuccess(
+        touchState({ ...state, phase: 'drafting', draftsByParticipantId }, context.now),
+        actor.participantId,
+        command,
+        true,
+      );
+    } catch {
+      return commandFailure(
+        state,
+        'offer_generation_failed',
+        'The current champion snapshot could not generate a legal offer.',
+        command,
+      );
+    }
+  }
+
+  return commandFailure(
+    state,
+    'unauthorized',
+    'This command is not available to this role.',
+    command,
+  );
+}
+
+export function projectLobby(
+  state: LobbyState,
+  audience: Readonly<{ role: LobbyRole | 'observer'; participantId: string | null }>,
+  snapshot: ChampionSnapshot,
+): LobbyProjection {
+  const projection: LobbyProjection = {
+    protocolVersion: state.protocolVersion,
+    snapshotVersion: state.snapshotVersion,
+    roomCode: state.roomCode,
+    revision: state.revision,
+    phase: state.phase,
+    role: audience.role,
+    selfParticipantId: audience.participantId,
+    hostParticipantId: state.hostParticipantId,
+    settings: { ...state.settings },
+    participants: state.participants.map(({ id, nickname, role, ready, isConnected }) => ({
+      id,
+      nickname,
+      role,
+      ready,
+      isConnected,
+    })),
+    expiresAt: state.expiresAt,
+  };
+
+  if (state.phase === 'waiting' || state.phase === 'results') {
+    return LobbyProjectionSchema.parse(projection);
+  }
+
+  const playerParticipants = state.participants.filter(isDraftingPlayer);
+  const draftStates = new Map(
+    Object.entries(state.draftsByParticipantId).map(([participantId, persisted]) => [
+      participantId,
+      restoreDraftingRun(snapshot, persisted),
+    ]),
+  );
+  if (draftStates.size === 0) {
+    throw new LobbyStateError('invalid_state', 'An active draft has no private player state.');
+  }
+
+  const currentRound = Math.min(...[...draftStates.values()].map((draft) => draft.round + 1));
+  projection.currentRound = currentRound;
+
+  if (state.settings.mode === 'same') {
+    const offers = [...draftStates.values()].map((draft) => draft.offer);
+    if (new Set(offers.map((offer) => offer.id)).size !== 1) {
+      throw new LobbyStateError(
+        'invalid_state',
+        'Same Champs players must share one current offer.',
+      );
+    }
+    const sharedOffer = offers[0] as Offer;
+    if (audience.role === 'display') {
+      projection.offer = projectPublicOfferIdentity(sharedOffer);
+      return LobbyProjectionSchema.parse(projection);
+    }
+    if (audience.role === 'host' || audience.role === 'player') {
+      const ownDraft = audience.participantId ? draftStates.get(audience.participantId) : undefined;
+      if (ownDraft) projection.offer = projectOffer(ownDraft.offer);
+    } else {
+      projection.offer = projectPublicOfferIdentity(sharedOffer);
+    }
+    return LobbyProjectionSchema.parse(projection);
+  }
+
+  if (audience.role === 'display') {
+    projection.offersByPlayer = playerParticipants.flatMap((candidate) => {
+      const draft = draftStates.get(candidate.id);
+      return draft
+        ? [
+            {
+              participantId: candidate.id,
+              nickname: candidate.nickname,
+              offer: projectPublicOfferIdentity(draft.offer),
+            },
+          ]
+        : [];
+    });
+    return LobbyProjectionSchema.parse(projection);
+  }
+
+  if (audience.role === 'host' || audience.role === 'player') {
+    const ownDraft = audience.participantId ? draftStates.get(audience.participantId) : undefined;
+    if (ownDraft) projection.offer = projectOffer(ownDraft.offer);
+  }
+
+  return LobbyProjectionSchema.parse(projection);
+}
+
+export function isLobbyExpired(state: LobbyState, now: number): boolean {
+  return now >= state.expiresAt;
+}
+
+export function touchState(state: LobbyState, now: number): LobbyState {
+  if (!Number.isFinite(now) || now < 0) {
+    throw new LobbyStateError('invalid_state', 'Lobby activity time must be a finite timestamp.');
+  }
+  const activityTime = Math.max(state.lastActivityAt, Math.floor(now));
+  return {
+    ...state,
+    revision: state.revision + 1,
+    lastActivityAt: activityTime,
+    expiresAt: activityTime + LOBBY_EXPIRY_MS,
+  };
+}
+
+export function isDraftingPlayer(
+  participant: Pick<LobbyParticipant, 'role'>,
+): participant is LobbyParticipant {
+  return participant.role === 'host' || participant.role === 'player';
+}
+
+export function spectatorCount(state: LobbyState): number {
+  return state.participants.filter((participant) => participant.role === 'spectator').length;
+}
+
+function uniqueNickname(baseNickname: string, participants: readonly LobbyParticipant[]): string {
+  const taken = new Set(
+    participants.map((participant) => participant.nickname.toLocaleLowerCase('en-US')),
+  );
+  if (!taken.has(baseNickname.toLocaleLowerCase('en-US'))) return baseNickname;
+
+  for (let suffixNumber = 2; suffixNumber < 10_000; suffixNumber += 1) {
+    const suffix = ` (${suffixNumber})`;
+    const baseCharacters = visibleCharacters(baseNickname);
+    const suffixLength = visibleCharacterLength(suffix);
+    const shortenedBase = baseCharacters.slice(0, Math.max(2, 16 - suffixLength)).join('');
+    const candidate = `${shortenedBase}${suffix}`;
+    if (!taken.has(candidate.toLocaleLowerCase('en-US'))) return candidate;
+  }
+
+  throw new LobbyStateError('invalid_state', 'A unique nickname could not be assigned.');
+}
+
+function visibleCharacterLength(value: string): number {
+  return visibleCharacters(value).length;
+}
+
+function hasControlCharacters(value: string): boolean {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    if ((codePoint >= 0 && codePoint <= 0x1f) || (codePoint >= 0x7f && codePoint <= 0x9f)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function visibleCharacters(value: string): string[] {
+  if (typeof Intl.Segmenter === 'function') {
+    return Array.from(
+      new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(value),
+      (item) => item.segment,
+    );
+  }
+  return Array.from(value);
+}
+
+function createInitialDrafts(
+  snapshot: ChampionSnapshot,
+  playerIds: readonly string[],
+  mode: DraftMode,
+  random: RandomSource,
+): Record<string, LobbyState['draftsByParticipantId'][string]> {
+  if (playerIds.length < 2 || playerIds.length > 8) {
+    throw new LobbyStateError(
+      'invalid_state',
+      'A draft requires between two and eight player seats.',
+    );
+  }
+
+  if (mode === 'random') {
+    return Object.fromEntries(
+      playerIds.map((participantId) => [
+        participantId,
+        PersistedDraftingRunSchema.parse(serializeDraftingRun(createRun(snapshot, random))),
+      ]),
+    );
+  }
+
+  const first = createRun(snapshot, random);
+  const independentStates = playerIds.map(() => cloneDraftState(first));
+  const sharedOffers = generateSharedOffers(snapshot, independentStates, random);
+  return Object.fromEntries(
+    playerIds.map((participantId, index) => {
+      const draft = independentStates[index];
+      const offer = sharedOffers[index];
+      if (!draft || !offer) {
+        throw new LobbyStateError('invalid_state', 'The first shared offer is incomplete.');
+      }
+      return [
+        participantId,
+        PersistedDraftingRunSchema.parse(serializeDraftingRun({ ...draft, offer })),
+      ];
+    }),
+  );
+}
+
+function cloneDraftState(state: DraftingRunState): DraftingRunState {
+  return {
+    ...state,
+    usedChampionIds: [...state.usedChampionIds],
+    lockedBuild: { ...state.lockedBuild },
+    picks: [...state.picks],
+  };
+}
+
+function projectOffer(offer: Offer): OfferProjection {
+  return OfferProjectionSchema.parse({
+    id: offer.id,
+    champion: projectChampionIdentity(offer).champion,
+    variant: {
+      id: offer.variant.id,
+      ...(offer.variant.label ? { label: offer.variant.label } : {}),
+    },
+    selectableSlots: [...offer.selectableSlots],
+    components: Object.fromEntries(
+      DRAFT_SLOT_ORDER.map((slot) => {
+        const component = offer.components[slot];
+        return [
+          slot,
+          {
+            id: component.id,
+            slot: component.slot,
+            name: component.name,
+            iconRef: component.iconRef,
+            shortDescription: component.shortDescription,
+            fullDescription: component.fullDescription,
+            ...(component.cooldown ? { cooldown: component.cooldown } : {}),
+            ...(component.cooldowns ? { cooldowns: component.cooldowns } : {}),
+            ...(component.range ? { range: component.range } : {}),
+            ...(component.ranges ? { ranges: component.ranges } : {}),
+            ...(component.healthCost ? { healthCost: component.healthCost } : {}),
+            ...(component.healthCosts ? { healthCosts: component.healthCosts } : {}),
+            values: component.values,
+            availability: component.availability,
+            dependencies: component.dependencies,
+            carriedMechanics: component.carriedMechanics,
+            ...(component.bodyStats ? { bodyStats: component.bodyStats } : {}),
+          },
+        ];
+      }),
+    ) as OfferProjection['components'],
+  });
+}
+
+function projectPublicOfferIdentity(offer: Offer): PublicOfferIdentity {
+  return PublicOfferIdentitySchema.parse(projectChampionIdentity(offer));
+}
+
+function projectChampionIdentity(offer: Offer): PublicOfferIdentity {
+  return {
+    champion: {
+      id: offer.champion.id,
+      name: offer.champion.name,
+      title: offer.champion.title,
+      icon: offer.champion.assetRefs.icon,
+      defaultSplash: offer.champion.assetRefs.defaultSplash,
+      defaultLoading: offer.champion.assetRefs.defaultLoading,
+    },
+  };
+}
+
+function commandSuccess(
+  state: LobbyState,
+  participantId: string,
+  command: ClientCommand,
+  changed: boolean,
+): LobbyCommandSuccess {
+  const appliedRevision = state.revision;
+  const resultState = {
+    ...state,
+    recentCommands: [
+      ...state.recentCommands,
+      { participantId, commandId: command.commandId, appliedRevision },
+    ].slice(-MAX_RECENT_COMMANDS),
+  };
+  return {
+    ok: true,
+    state: resultState,
+    commandId: command.commandId,
+    appliedRevision,
+    duplicate: false,
+    changed,
+  };
+}
+
+function commandFailure(
+  state: LobbyState,
+  code: LobbyCommandFailure['code'],
+  message: string,
+  command?: ClientCommand,
+): LobbyCommandFailure {
+  return {
+    ok: false,
+    state,
+    ...(command ? { commandId: command.commandId } : {}),
+    code,
+    message,
+  };
+}
+
+function settingsEqual(left: LobbySettings, right: LobbySettings): boolean {
+  return (
+    left.mode === right.mode && left.speed === right.speed && left.revealOrder === right.revealOrder
+  );
+}
+
+function nextRandom(random: RandomSource): number {
+  const value = random();
+  if (!Number.isFinite(value)) {
+    throw new LobbyStateError('invalid_state', 'Random input must be a finite number.');
+  }
+  return Math.min(1 - Number.EPSILON, Math.max(0, value));
+}

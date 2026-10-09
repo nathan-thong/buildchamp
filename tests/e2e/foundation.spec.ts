@@ -73,6 +73,7 @@ test('Riot notices keep a readable width on desktop and narrow mobile screens', 
 
   await page.setViewportSize({ width: 320, height: 844 });
   await page.reload();
+  await expect(notices).toHaveCount(2);
   const mobileLayout = await notices.evaluateAll((elements) =>
     elements.map((element) => element.getBoundingClientRect().width),
   );

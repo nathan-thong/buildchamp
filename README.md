@@ -1,17 +1,22 @@
 # BuildChamp
 
-BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. Planned private lobbies will let friends draft, reveal their builds, and vote to rank them.
+BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. Planned private lobbies will let friends draft, reveal their builds, and vote to rank them; a local server-authoritative lobby foundation is implemented, while room screens and synchronized drafting remain planned.
 
 A solo run has six rounds. In each round, permanently lock one remaining component—**Body, Q, W, E, R, or Passive**—from the offered champion. There are no skips or rerolls. Build strength stays subjective; players decide which combination wins.
 
 ## Project Status
 
-Slice 7 technical QA is complete locally. The maintainer reports that BuildChamp's Riot Developer
-Portal listing is approved; review of the CommunityDragon image references remains open, so public
-release sign-off is pending. Slice 8 deployment preparation is complete, and a Workers.dev
-deployment is online at
-[buildchamp.nathan-thong.workers.dev](https://buildchamp.nathan-thong.workers.dev). The portal status
-does not by itself resolve asset eligibility. The repository contains a validated English Data Dragon
+Slice 7 technical QA and Slice 8 deployment preparation are complete. Slice 9's server-authoritative
+room foundation is implemented and verified locally; Slice 10's participant room screens,
+synchronized draft rounds, and shared display remain planned, as do the later reveal and voting work.
+The local Worker API exposes `POST /api/rooms`,
+`GET /api/rooms/:code`, `POST /api/rooms/:code/join`, and the authenticated
+`GET /api/rooms/:code/socket` WebSocket route. These backend changes have not been deployed; the
+currently live Workers.dev site remains the solo-only release at
+[buildchamp.nathan-thong.workers.dev](https://buildchamp.nathan-thong.workers.dev). The maintainer
+reports Riot Developer Portal approval dated 2026-09-28, but the approval record is not in this
+repository. The source inventory for 38 CommunityDragon image references is complete; their Riot
+eligibility remains unconfirmed, so release sign-off is pending. The repository contains a validated English Data Dragon
 16.17.1 snapshot, retained 15.17.1 snapshot, deterministic source/cache/normalize/emit stages,
 reviewed champion compatibility entries covering shared systems and transformed states, a generated
 patch report, and a pure deterministic engine with adaptive legal-path checking. The `/solo` route
@@ -30,14 +35,14 @@ The plan is:
 
 1. Untimed solo draft
 2. Shareable build results
-3. Private friend lobbies
+3. Private friend lobbies (local backend foundation implemented; room UI and synchronized draft planned)
 4. Shared reveal and voting
 5. Public build rankings only if group play proves useful; accounts remain deferred
 
 ## Stack
 
 - TypeScript, React, and Vite
-- Tailwind CSS with accessible Radix UI primitives where needed
+- Tailwind CSS for styling
 - Zod for runtime validation
 - Vitest, React Testing Library, and Playwright
 - Cloudflare Workers Static Assets for the solo release
@@ -45,7 +50,7 @@ The plan is:
 - Cloudflare Worker, native WebSockets, and one SQLite-backed Durable Object per multiplayer lobby
 - Controlled, versioned Riot Data Dragon snapshots for champion data and default artwork
 
-Solo play runs in the browser without a gameplay backend. After its first online visit, the app shell and versioned code can reload offline; remote champion artwork may fall back when no network is available. The multiplayer backend is deliberately deferred until the solo experience is complete.
+Solo play runs in the browser without a gameplay backend. After its first online visit, the app shell and versioned code can reload offline; remote champion artwork may fall back when no network is available. The local lobby foundation uses a Cloudflare Worker and one SQLite-backed Durable Object per room, but the public deployment has not received that backend change.
 
 ## Development Documentation
 
@@ -74,7 +79,8 @@ I use agentic AI tools to help plan and build BuildChamp. I review and test thei
 
 ## Local Development
 
-Use pnpm from the repository root:
+Requires Node.js 20.19 or newer. The repository pins pnpm 11.19.0 in `package.json`; run its
+commands from the repository root:
 
 ```sh
 pnpm install
@@ -86,9 +92,10 @@ pnpm test
 pnpm build
 pnpm build:cloudflare
 pnpm preview
+pnpm test:e2e:multiplayer
 ```
 
-The browser suite uses Playwright across Chromium and WebKit, including offline refresh and axe WCAG A/AA checks. Install the browser
+The solo browser suite uses Playwright across Chromium and WebKit, including offline refresh and axe WCAG A/AA checks. The separate `pnpm test:e2e:multiplayer` command builds the app, starts local Wrangler Workers with isolated Durable Object stores, and verifies room creation/join, WebSocket authorization, role projections, malformed and oversized requests, rate limits, reconnect, and versioned SQLite state restoration after a Worker restart. Neither command deploys anything. Install the browser
 binaries once on a new machine, then run:
 
 ```sh
@@ -111,9 +118,10 @@ The importer writes versioned JSON under `src/data/snapshots/` and a review repo
 release containing Riot data or assets.
 
 Cloudflare deployment preparation is included in the repository. Run `pnpm build:cloudflare` to
-build and verify the deployable static assets, or `pnpm run cloudflare:dev` for a local Worker
-smoke test. A Workers.dev deployment is online, but it is not a Slice 7 sign-off or Riot policy
-approval. See [DEPLOYMENT.md](./DEPLOYMENT.md) for deployment, rollback, and monitoring guidance.
+build and verify the deployable assets, or `pnpm run cloudflare:dev` for a local Worker smoke test.
+The Slice 9 API routes listed above are available in local Worker runs; the currently deployed
+Workers.dev site still serves the solo-only release. See [DEPLOYMENT.md](./DEPLOYMENT.md) for the
+release gate, deployment, rollback, and monitoring guidance.
 
 ## Core Rules
 
@@ -131,11 +139,11 @@ See [PRODUCT.md](./PRODUCT.md) and [CHAMPION_DATA.md](./CHAMPION_DATA.md) for th
 
 ## Riot Games and Asset Notice
 
-BuildChamp is an unofficial, non-commercial fan game and is not endorsed, sponsored, or operated by Riot Games. The repository contains a validated snapshot of Riot-provided champion data and references to default artwork. The maintainer reports that the product listing in Riot's Developer Portal is approved; review of the CommunityDragon references remains open.
+BuildChamp is an unofficial, non-commercial fan game and is not endorsed, sponsored, or operated by Riot Games. The repository contains a validated snapshot of Riot-provided champion data and references to default artwork. The maintainer reports Riot Developer Portal approval dated 2026-09-28, but that record is not in this repository; eligibility of the 38 CommunityDragon image references remains unconfirmed.
 
-Riot's [Developer Relations policy explanation](https://support-developer.riotgames.com/hc/en-us/articles/22698591841939-General-Policies) describes prohibited games as simulators, recreations, or experiences difficult to distinguish from official Riot games, and allows completely free, original fan celebrations. BuildChamp is a free, original drafting game that does not simulate League play or resemble the League client. We assess it as plausibly within that allowance; this is a reading of the published policy, not Riot approval.
+Riot's [General Policies](https://support-developer.riotgames.com/hc/en-us/articles/22698591841939-General-Policies) and [Legal Jibber Jabber](https://www.riotgames.com/en/legal) include restrictions on games using Riot IP and an allowance for completely free, original fan celebrations. How that allowance applies to BuildChamp remains unresolved; this summary makes no legal conclusion and does not represent Riot approval.
 
-Public champion quiz games such as [Champdle](https://www.champdle.com/about) and [LoLdle](https://apps.apple.com/us/app/loldle-official/id6449491946) provide comparisons, but their existence does not establish BuildChamp's permission or reveal their registration status. Riot's [League policy](https://support-developer.riotgames.com/hc/en-us/articles/22698698001939-League-of-Legends) still requires registration for products serving players, with or without documented API use. The snapshot also references some CommunityDragon images that are not named in Riot's listed asset sources. These remain release-review items.
+Public champion quiz games such as [Champdle](https://www.champdle.com/about) and [LoLdle](https://apps.apple.com/us/app/loldle-official/id6449491946) provide comparisons, but their existence does not establish BuildChamp's permission or reveal their registration status. Riot's [League policy](https://support-developer.riotgames.com/hc/en-us/articles/22698698001939-League-of-Legends) requires registration for products serving players, with or without documented API use. Riot eligibility for the 38 CommunityDragon image references remains unconfirmed; see the [release checklist](./RELEASE_CHECKLIST.md) for the source inventory and policy review.
 
 Any player-visible release must conspicuously include Riot's required notices, including:
 
