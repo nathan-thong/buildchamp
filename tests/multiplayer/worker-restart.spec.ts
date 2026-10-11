@@ -50,10 +50,20 @@ test('local Worker restart restores versioned lobby and draft state from SQLite'
         latestSequence: () => number;
       };
 
+      function newIdentityToken(): string {
+        const bytes = crypto.getRandomValues(new Uint8Array(32));
+        const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+        return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
+      }
+
       const createResponse = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ protocolVersion: 2, nickname: 'Restart Host' }),
+        body: JSON.stringify({
+          protocolVersion: 3,
+          nickname: 'Restart Host',
+          browserIdentityToken: newIdentityToken(),
+        }),
       });
       const hostJoin = (await createResponse.json()) as Join;
       if (!createResponse.ok) throw new Error(`Room create failed with ${createResponse.status}.`);
@@ -63,7 +73,11 @@ test('local Worker restart restores versioned lobby and draft state from SQLite'
       const joinResponse = await fetch(`/api/rooms/${hostJoin.roomCode}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ protocolVersion: 2, nickname: 'Restart Player' }),
+        body: JSON.stringify({
+          protocolVersion: 3,
+          nickname: 'Restart Player',
+          browserIdentityToken: newIdentityToken(),
+        }),
       });
       const playerJoin = (await joinResponse.json()) as Join;
       if (!joinResponse.ok) throw new Error(`Player join failed with ${joinResponse.status}.`);
@@ -113,7 +127,7 @@ test('local Worker restart restores versioned lobby and draft state from SQLite'
         const url = new URL(join.socketPath, location.href);
         url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(url, [
-          'buildchamp.v2',
+          'buildchamp.v3',
           `participant.${join.participantId}`,
           `token.${join.reconnectToken}`,
         ]);
@@ -170,7 +184,7 @@ test('local Worker restart restores versioned lobby and draft state from SQLite'
             { once: true },
           );
         });
-        if (socket.protocol !== 'buildchamp.v2') {
+        if (socket.protocol !== 'buildchamp.v3') {
           throw new Error('The Worker negotiated an unexpected protocol after restart.');
         }
         return client;
@@ -185,7 +199,7 @@ test('local Worker restart restores versioned lobby and draft state from SQLite'
         const roomRevision = client.projection?.revision as number;
         const sequence = client.latestSequence();
         client.socket.send(
-          JSON.stringify({ protocolVersion: 2, commandId, roomRevision, type, payload }),
+          JSON.stringify({ protocolVersion: 3, commandId, roomRevision, type, payload }),
         );
         const ack = await client.waitFor(
           (event) => event.type === 'command.ack' && event.payload.commandId === commandId,
@@ -245,7 +259,7 @@ test('local Worker restart restores versioned lobby and draft state from SQLite'
         const url = new URL(join.socketPath, location.href);
         url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(url, [
-          'buildchamp.v2',
+          'buildchamp.v3',
           `participant.${join.participantId}`,
           `token.${join.reconnectToken}`,
         ]);
@@ -293,7 +307,7 @@ test('local Worker restart restores versioned lobby and draft state from SQLite'
             { once: true },
           );
         });
-        if (socket.protocol !== 'buildchamp.v2') {
+        if (socket.protocol !== 'buildchamp.v3') {
           throw new Error('The Worker negotiated an unexpected protocol after restart.');
         }
         return client;
@@ -314,7 +328,7 @@ test('local Worker restart restores versioned lobby and draft state from SQLite'
     expect(afterRestart.hostOfferId).toBe(session.beforeRestart.hostOfferId);
     expect(afterRestart.playerOfferId).toBe(session.beforeRestart.playerOfferId);
     expect(afterRestart.hostOfferId).toBe(afterRestart.playerOfferId);
-    expect(afterRestart.protocolVersions).toEqual([2, 2]);
+    expect(afterRestart.protocolVersions).toEqual([3, 3]);
   } finally {
     if (worker) {
       await stopWorker(worker);

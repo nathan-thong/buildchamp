@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { AppShell } from './components/AppShell';
 import { LoadingState } from './components/StatePanels';
+import { LobbySessionProvider } from './lib/lobby-session-context';
 import { HomePage } from './pages/HomePage';
 import { LobbyEntryPage } from './pages/LobbyEntryPage';
 import { LobbyRoomPage } from './pages/LobbyRoomPage';
@@ -52,6 +53,14 @@ function pageTitle(route: AppRoute): string {
 }
 
 export function App() {
+  return (
+    <LobbySessionProvider>
+      <AppRouter />
+    </LobbySessionProvider>
+  );
+}
+
+function AppRouter() {
   const location = useBrowserLocation();
   const previewState = getPreviewState(location.search);
   const route = parseRoute(location.pathname);

@@ -259,6 +259,49 @@ button:disabled {
   box-shadow: inset 0 -2px 0 var(--bc-color-gold-bright);
 }
 
+.active-room-banner {
+  display: flex;
+  width: min(100% - 2 * var(--bc-space-page), 100rem);
+  min-height: 4.35rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 auto;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--bc-color-line-gold-soft);
+  border-top: 0;
+  border-radius: 0 0 var(--bc-radius-sm) var(--bc-radius-sm);
+  background: linear-gradient(100deg, var(--bc-color-gold-wash), var(--bc-color-surface));
+}
+
+.active-room-banner__copy,
+.active-room-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.active-room-banner__copy strong {
+  color: var(--bc-color-gold-bright);
+  font-family: var(--bc-font-mono);
+  font-size: 0.88rem;
+}
+
+.active-room-banner__copy span {
+  color: var(--bc-color-paper-muted);
+  font-size: 0.78rem;
+}
+
+.active-room-banner__error {
+  color: #ffb6a6;
+  font-size: 0.75rem;
+}
+
+.button--small {
+  min-height: 2.45rem;
+  padding: 0.6rem 0.8rem;
+}
+
 .mute-control {
   display: inline-flex;
   align-items: center;
@@ -3187,6 +3230,34 @@ button.slot-card[aria-pressed='true'] {
     display: none;
   }
 
+  .active-room-banner {
+    width: calc(100% - 1.5rem);
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.75rem;
+  }
+
+  .active-room-banner__copy {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .active-room-banner__actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .active-room-banner__actions .button {
+    min-height: 2.75rem;
+  }
+
+  .active-room-banner__error {
+    width: 100%;
+  }
+
   .component-details-popover {
     width: calc(100vw - 1rem);
     max-width: calc(100vw - 1rem);
@@ -3395,6 +3466,220 @@ button.slot-card[aria-pressed='true'] {
 
   .result-list__row strong {
     font-size: 0.95rem;
+  }
+}
+
+.room-phase-panel,
+.display-phase {
+  display: grid;
+  gap: 1.4rem;
+  margin-top: 2.2rem;
+  padding: clamp(1rem, 2.4vw, 1.8rem);
+  border: 1px solid var(--bc-color-line);
+  border-radius: var(--bc-radius-panel);
+  background: linear-gradient(145deg, rgba(19, 40, 59, 0.94), rgba(13, 24, 37, 0.94));
+  box-shadow: var(--bc-shadow-panel);
+}
+
+.room-phase-panel__heading,
+.display-phase__heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.room-phase-panel__heading h2,
+.display-phase__heading h2 {
+  margin: 0.2rem 0 0.4rem;
+  font-family: var(--bc-font-display);
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  line-height: 1.08;
+}
+
+.room-phase-panel__heading p,
+.display-phase__heading p {
+  max-width: 50rem;
+  margin: 0;
+  color: var(--bc-color-paper-muted);
+}
+
+.lobby-build-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.lobby-build-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--bc-color-line);
+  border-radius: var(--bc-radius-panel);
+  background: rgba(7, 13, 22, 0.55);
+}
+
+.lobby-build-card--winner {
+  border-color: var(--bc-color-line-gold);
+  box-shadow: inset 0 0 0 1px var(--bc-color-gold-wash);
+}
+
+.lobby-build-card__header {
+  display: grid;
+  min-height: 7rem;
+  grid-template-columns: minmax(7rem, 0.7fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--bc-color-line);
+}
+
+.lobby-build-card__art {
+  width: 100%;
+  height: 7rem;
+  border-radius: var(--bc-radius-sm);
+  background: var(--bc-color-art);
+  object-fit: cover;
+  object-position: center 25%;
+}
+
+.lobby-build-card__identity h3 {
+  margin: 0.15rem 0 0.25rem;
+  color: var(--bc-color-gold-bright);
+  font-family: var(--bc-font-display);
+  font-size: 1.25rem;
+}
+
+.lobby-build-card__identity p:not(.screen-label) {
+  margin: 0;
+  color: var(--bc-color-paper-muted);
+  font-size: 0.8rem;
+}
+
+.lobby-build-card__votes {
+  display: inline-block;
+  margin-top: 0.55rem;
+  color: var(--bc-color-mint);
+  font-size: 0.78rem;
+}
+
+.lobby-build-card__slots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.9rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lobby-build-slot {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem;
+  border: 1px solid var(--bc-color-line);
+  border-radius: var(--bc-radius-sm);
+  background: var(--bc-color-surface);
+}
+
+.lobby-build-slot img {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  border-radius: var(--bc-radius-sm);
+  background: var(--bc-color-surface-raised);
+  object-fit: cover;
+}
+
+.lobby-build-slot div {
+  display: grid;
+  min-width: 0;
+}
+
+.lobby-build-slot span {
+  color: var(--bc-color-mint);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lobby-build-slot strong,
+.lobby-build-slot small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-build-slot strong {
+  color: var(--bc-color-paper);
+  font-size: 0.73rem;
+}
+
+.lobby-build-slot small {
+  color: var(--bc-color-paper-muted);
+  font-size: 0.62rem;
+}
+
+.lobby-build-card__vote {
+  width: 100%;
+  min-height: 2.8rem;
+}
+
+.room-vote-note {
+  margin: 0;
+  padding: 0.8rem 1rem;
+  border-left: 3px solid var(--bc-color-mint);
+  color: var(--bc-color-paper);
+  background: var(--bc-color-mint-wash);
+}
+
+.display-phase {
+  margin-top: 2rem;
+}
+
+.lobby-build-grid--display .lobby-build-card {
+  background: rgba(7, 13, 22, 0.8);
+}
+
+@media (max-width: 760px) {
+  .lobby-build-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 540px) {
+  .room-phase-panel__heading,
+  .display-phase__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lobby-build-card {
+    padding: 0.75rem;
+  }
+
+  .lobby-build-card__header {
+    grid-template-columns: minmax(5.5rem, 0.55fr) minmax(0, 1fr);
+    gap: 0.7rem;
+  }
+
+  .lobby-build-card__art {
+    height: 5.5rem;
+  }
+
+  .lobby-build-card__slots {
+    gap: 0.35rem;
+  }
+
+  .lobby-build-slot {
+    gap: 0.35rem;
+    padding: 0.35rem;
+  }
+
+  .lobby-build-slot img {
+    width: 2rem;
+    height: 2rem;
   }
 }
 

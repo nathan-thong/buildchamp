@@ -6,21 +6,21 @@ This document records the implementation architecture for the solo-first release
 
 ## Technology Choices
 
-| Concern | Choice | Reason |
-| --- | --- | --- |
-| Language | TypeScript | Shared domain types across build tooling, client, and Worker |
-| Client | React + Vite | Fast local iteration and a small static deployment |
-| Styling | Tailwind CSS with explicit design tokens | Rapid implementation without coupling product state to a component framework |
-| Accessible primitives | Radix UI where a native element is insufficient | Keyboard and screen-reader behaviour for dialogs, tooltips, and menus |
-| Runtime validation | Zod | Validate imported data, decoded share links, local storage, and network messages |
-| Hosting | Cloudflare Workers Static Assets | Free initial hosting with a direct path to the multiplayer backend |
-| Multiplayer API | Cloudflare Worker | Room routing, creation, joining, and asset/API boundary |
-| Lobby runtime | One Durable Object per lobby | Single authoritative, ordered state owner for each room |
-| Lobby persistence | Durable Object SQLite storage | Small recoverable snapshots, alarms, and one-hour expiry |
-| Realtime transport | Native WebSockets using Durable Object hibernation | Low-overhead lobby events without per-second polling |
-| Unit/component tests | Vitest + React Testing Library | Fast tests using the Vite toolchain |
-| Browser tests | Playwright | Complete solo and multiplayer journey verification |
-| Workspace | pnpm | Reproducible scripts and room for shared packages without premature complexity |
+| Concern               | Choice                                             | Reason                                                                           |
+| --------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Language              | TypeScript                                         | Shared domain types across build tooling, client, and Worker                     |
+| Client                | React + Vite                                       | Fast local iteration and a small static deployment                               |
+| Styling               | Tailwind CSS with explicit design tokens           | Rapid implementation without coupling product state to a component framework     |
+| Accessible primitives | Radix UI where a native element is insufficient    | Keyboard and screen-reader behaviour for dialogs, tooltips, and menus            |
+| Runtime validation    | Zod                                                | Validate imported data, decoded share links, local storage, and network messages |
+| Hosting               | Cloudflare Workers Static Assets                   | Free initial hosting with a direct path to the multiplayer backend               |
+| Multiplayer API       | Cloudflare Worker                                  | Room routing, creation, joining, and asset/API boundary                          |
+| Lobby runtime         | One Durable Object per lobby                       | Single authoritative, ordered state owner for each room                          |
+| Lobby persistence     | Durable Object SQLite storage                      | Small recoverable snapshots, alarms, and one-hour expiry                         |
+| Realtime transport    | Native WebSockets using Durable Object hibernation | Low-overhead lobby events without per-second polling                             |
+| Unit/component tests  | Vitest + React Testing Library                     | Fast tests using the Vite toolchain                                              |
+| Browser tests         | Playwright                                         | Complete solo and multiplayer journey verification                               |
+| Workspace             | pnpm                                               | Reproducible scripts and room for shared packages without premature complexity   |
 
 Versions are locked when the project is scaffolded and updated deliberately.
 
@@ -41,10 +41,12 @@ Versions are locked when the project is scaffolded and updated deliberately.
                │ static assets / room API      │ WebSocket
                v                              v
         Cloudflare Worker ─────────> Durable Object per lobby
-                                      ├── authoritative state
-                                      ├── deadline alarms
-                                      ├── reconnect tokens
-                                      └── one-hour expiry
+          │                           ├── authoritative state
+          │                           ├── deadline alarms
+          │                           ├── reconnect tokens
+          │                           └── one-hour expiry
+          └────────────────────────> Durable Object per browser identity
+                                      └── active-room admission claim only
 ```
 
 The draft engine and champion-data package are runtime-independent. They cannot import React, browser APIs, Cloudflare APIs, or storage implementations. This is the primary portability boundary.
@@ -105,11 +107,15 @@ The initial Open Graph image and metadata are generic BuildChamp branding. Per-b
 
 The Worker creates a short, human-readable room code using cryptographically secure randomness and resolves it to one Durable Object ID. The room URL and code are equivalent join paths.
 
-Each Durable Object owns exactly one lobby. All commands for that lobby are serialized through it, avoiding cross-server locks and conflict resolution. The object stores compact snapshots only at meaningful transitions rather than after every visual update.
+Each lobby Durable Object owns exactly one room. All gameplay commands for that room are serialized through it, avoiding cross-server locks and conflict resolution. The object stores compact snapshots only at meaningful transitions rather than after every visual update. A separate browser-identity Durable Object serializes admission claims across rooms; it does not store or control gameplay state.
 
 ### Connections
 
-Participant roles are `host`, `player`, `spectator`, and `display`. A private reconnect token is generated when a participant joins and stored only in that browser. Public player IDs and private reconnect credentials are distinct.
+Participant roles are `host`, `player`, `spectator`, and `display`. When browser storage is available, each same-origin browser profile has a random 256-bit identity secret in local storage. The Worker hashes it and uses the hash as the identity coordinator key; the coordinator stores a pending or active claim for one room and participant, while each lobby stores the hash on its own participant record. If persistent storage is unavailable, the client falls back to an in-memory identity that lasts only for that page. A display has no browser identity claim. This allows one active non-display seat per origin/profile when storage is available, but does not identify a person across profiles or devices and does not impose an IP-based seat limit; request rate limits still apply.
+
+A private reconnect token is generated when a participant joins and stored with that browser's room session. Public player IDs, identity hashes, and private reconnect credentials are distinct. If a create/join response is lost, the browser identity secret can recover the registered room and participant only after the identity object confirms the lobby still has a matching active seat. Recovery derives a replacement reconnect credential from the secret and that room/participant pair, then the lobby verifies the stored identity hash and rotates the reconnect-token hash. Raw identity and reconnect secrets never appear in public projections or URLs. Repeated recovery for the same identity and seat returns the same credential, so concurrent tabs converge; a new tab takes control and closes the old socket without releasing the seat. Explicit authenticated Leave releases the seat. Navigation and ordinary disconnects do not.
+
+The lobby session provider sits above route navigation, so moving between Solo and Rooms does not close the active room session. A saved session can be reopened in another tab, where the latest tab controls that same seat. Shared display entry remains independent of player identity.
 
 The WebSocket hibernation API must be used. The server sends absolute `deadlineAt` timestamps; clients animate countdowns locally. The server does not broadcast per-second ticks.
 
@@ -119,7 +125,7 @@ All messages use a versioned envelope:
 
 ```ts
 type ClientCommand = {
-  protocolVersion: 2;
+  protocolVersion: 3;
   commandId: string;
   roomRevision: number;
   type: string;
@@ -127,7 +133,7 @@ type ClientCommand = {
 };
 
 type ServerEvent = {
-  protocolVersion: 2;
+  protocolVersion: 3;
   revision: number;
   type: string;
   payload: unknown;
@@ -146,20 +152,22 @@ waiting -> drafting -> draft-complete -> revealing -> voting -> results
    └──────────────────────── rematch ───────────────────────┘
 ```
 
-The local Slice 10 implementation completes the synchronized draft at `draft-complete`; builds
-remain private until the later reveal slice adds the remaining phases.
-
 The Durable Object validates every transition:
 
 - Only the host may change settings or start.
-- Starting requires 2–8 ready players.
+- Starting requires at least two connected ready players; every joined player seat participates, even if that player is not ready.
 - Draft locks must reference the current offer and an open, compatible slot.
 - A deadline alarm assigns a random compatible choice to unlocked players.
 - A draft round advances early only when every player seat has locked. Disconnected seats stay
   unresolved until the shared deadline, then receive legal autopicks.
-- Votes are secret, single-use, and cannot target the voter.
+- Votes are secret, single-use, and cannot target the voter. Vote commands include the absolute voting deadline as their phase identity; an older room revision is accepted only for that same active voting phase, so concurrent ballots are counted without allowing stale-phase or late votes.
 - Tied highest totals produce shared winners.
 - Staged reveal advances on its deadline or host command; All at Once advances immediately.
+- Secret votes are keyed by the voter's browser-identity hash, preventing a second participant seat in the same profile from casting another ballot.
+- Explicit Leave is authenticated by the participant's reconnect credential. Before reveal, it removes the seat and its unshown build. After reveal starts, the completed build remains a candidate and an already-cast ballot remains recorded; the departed seat cannot vote again or join a rematch. A later rejoin creates a new spectator seat where the room phase permits it.
+- Rematches retain the room and participants who have not left, clear the previous draft/ballots, and generate fresh champions. A departing participant is not restored into the rematch.
+
+Local protocol and persisted-state schema version 3 read existing version-2 lobby snapshots. Waiting and drafting state, including an absolute draft deadline, is preserved. A legacy `draft-complete` room is advanced once to reveal using its stored reveal preference and a new server-derived reveal deadline; reads do not repeatedly restart the phase. Version 3 adds the separate `BuildChampBrowserIdentity` SQLite Durable Object via Wrangler migration `v2`, following the lobby class in migration `v1`. This migration is present in the local Wrangler configuration; it has not been applied to the live service.
 
 Quick, Standard, and Relaxed settings use draft timers of 15, 30, and 45 seconds and voting timers
 of 20, 30, and 45 seconds respectively. The selected draft deadline is one absolute timestamp
@@ -192,15 +200,17 @@ A patch snapshot is committed and deployed only after validation and review. Exi
 
 ## State and Storage Boundaries
 
-| Data | Location | Lifetime |
-| --- | --- | --- |
-| Champion snapshots | Versioned static assets | Retained while referenced builds are supported |
-| Solo run recovery | Browser local storage | Until completion, restart, or schema invalidation |
-| Sound and accessibility preferences | Browser local storage | Persistent |
-| Share result | URL payload | Controlled by the person sharing it |
-| Lobby state | Durable Object SQLite | One hour after last activity |
-| Reconnect token | Browser plus lobby state | Lobby lifetime |
-| Operational logs | Cloudflare observability | Minimum useful retention |
+| Data                                | Location                          | Lifetime                                                                     |
+| ----------------------------------- | --------------------------------- | ---------------------------------------------------------------------------- |
+| Champion snapshots                  | Versioned static assets           | Retained while referenced builds are supported                               |
+| Solo run recovery                   | Browser local storage             | Until completion, restart, or schema invalidation                            |
+| Sound and accessibility preferences | Browser local storage             | Persistent                                                                   |
+| Share result                        | URL payload                       | Controlled by the person sharing it                                          |
+| Lobby state                         | Durable Object SQLite             | One hour after last activity                                                 |
+| Reconnect token                     | Browser plus lobby state          | Lobby lifetime                                                               |
+| Browser identity secret             | Same-origin browser local storage | Until the user clears storage or the browser profile is removed              |
+| Browser identity claim              | Identity Durable Object SQLite    | Until explicit Leave, confirmed room expiry/removal, or stale-claim recovery |
+| Operational logs                    | Cloudflare observability          | Minimum useful retention                                                     |
 
 No account identifiers, behavioural analytics, chat messages, or freeform build text exist in the initial system.
 
@@ -210,6 +220,9 @@ No account identifiers, behavioural analytics, chat messages, or freeform build 
 - Render nicknames as text, enforce visible-character length, and apply the basic profanity filter server-side.
 - Apply command size limits, message-rate limits, connection limits, and room creation throttles at the Worker boundary.
 - Store reconnect tokens as secrets and never broadcast them.
+- Store only a hash of the browser identity secret in Worker state. The coordinator checks the authoritative room before freeing stale claims; a pending reservation expires if room creation/join never completes.
+- Treat the one-active-seat rule as a browser-profile boundary, not proof of one human identity. Separate profiles or devices can create separate seats.
+- Revalidate identity during recovery and rotate the lobby's reconnect-token hash; never accept a public participant ID alone as proof of ownership.
 - Prevent spectators and displays from sending player commands.
 - Do not expose hidden picks through errors, logs, state snapshots, or accessibility labels before reveal.
 - Include Riot's required non-endorsement notice and do not imply affiliation.
@@ -251,6 +264,7 @@ Property-based tests are preferred for generation invariants because the state s
 
 - Role authorization and invalid-transition rejection.
 - Reconnect and host migration.
+- Cross-room identity reservation, lost-response recovery, stale-claim cleanup, and explicit release on Leave.
 - Deadline alarms and idempotent commands.
 - Hidden-information projections.
 - Lobby expiry and cleanup.
@@ -259,6 +273,7 @@ Property-based tests are preferred for generation invariants because the state s
 
 - Complete a solo run and reopen its shared result.
 - Create, join, draft, reveal, vote, and rematch in both multiplayer modes.
+- Exercise staged and All at Once reveal, persistent room navigation, and second-tab control takeover.
 - Disconnect and reconnect during a draft.
 - Join late as a spectator and vote.
 

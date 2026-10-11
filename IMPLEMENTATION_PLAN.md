@@ -10,12 +10,12 @@ Execution status belongs in `CURRENT_STATE.md`. Keep this file as the stable pla
 
 ## Release Map
 
-| Release | Outcome |
-| --- | --- |
-| Solo Alpha | Complete locally playable six-round draft with real champion snapshot |
-| Solo MVP | Polished, recoverable, accessible, shareable solo game deployed on Cloudflare |
-| Private Lobby Alpha | Friends can join, draft, reconnect, reveal, and vote locally/staging |
-| Private Lobby MVP | Stable link-based rooms, shared display, sound, expiry, and production deployment |
+| Release             | Outcome                                                                           |
+| ------------------- | --------------------------------------------------------------------------------- |
+| Solo Alpha          | Complete locally playable six-round draft with real champion snapshot             |
+| Solo MVP            | Polished, recoverable, accessible, shareable solo game deployed on Cloudflare     |
+| Private Lobby Alpha | Friends can join, draft, reconnect, reveal, and vote locally/staging              |
+| Private Lobby MVP   | Stable link-based rooms, shared display, sound, expiry, and production deployment |
 
 ## Slice 1 — Project and UI Foundation
 
@@ -270,6 +270,9 @@ Complete private group reveals, voting, and rematches.
 - End voting early when all connected eligible voters act; treat non-voters as abstentions.
 - Calculate shared winners on ties.
 - Add winner presentation, sound, fresh rematch, and exit paths.
+- Keep an active room session available while navigating between Solo and Rooms; expose a clear return path and explicit Leave action.
+- Enforce one active non-display seat per same-origin browser identity across rooms, with takeover for a second tab and recovery after a lost create/join response.
+- Preserve completed candidates and recorded ballots if a participant leaves after reveal begins; remove the departed seat from later voting and rematches.
 
 ### Acceptance criteria
 
@@ -281,6 +284,9 @@ Complete private group reveals, voting, and rematches.
 - Ties are displayed as shared victories.
 - A completed disconnected player's build remains eligible.
 - Rematch retains the room and participants but generates fresh champion offers.
+- Solo/Rooms navigation does not disconnect or release the active seat; a second tab takes over that same seat.
+- The identity coordinator rejects concurrent cross-room admissions for one browser profile, recovers its own lost response without creating a duplicate seat, and releases the claim only after authenticated Leave or confirmed room expiry/removal.
+- A departed participant cannot act on the old seat or return in a rematch; a permitted rejoin is a new spectator seat.
 
 ## Slice 12 — Private Lobby Release Gate
 

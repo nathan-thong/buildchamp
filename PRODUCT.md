@@ -16,17 +16,17 @@ League of Legends players and friend groups who want to draft hypothetical champ
 
 ## Product Purpose
 
-BuildChamp is an unofficial, non-commercial party game about building a hypothetical champion from League of Legends parts. A solo run has six rounds. Each round reveals a random champion, and the player permanently locks one remaining component—Body, Q, W, E, R, or Passive—from that champion. The finished build can be shared and argued over with friends. Planned private lobbies will let friends draft together or separately, reveal their builds, and vote to rank them. BuildChamp never assigns an automated power score.
+BuildChamp is an unofficial, non-commercial party game about building a hypothetical champion from League of Legends parts. A solo run has six rounds. Each round reveals a random champion, and the player permanently locks one remaining component—Body, Q, W, E, R, or Passive—from that champion. The finished build can be shared and argued over with friends. Private lobbies let friends draft together or separately, reveal their builds, and vote on favourites. BuildChamp never assigns an automated power score.
 
 Success means a player can understand the rules immediately and complete and share a build without an account. Planned group play should make it easy to compare and rank builds through votes with friends.
 
 ## Positioning
 
-The fun comes from making consequential choices with unexpected champion offers, then defending the resulting build. Every round contributes one part to a six-slot champion. The finished build is easy to inspect and share; planned private lobbies add group reveals and voting.
+The fun comes from making consequential choices with unexpected champion offers, then defending the resulting build. Every round contributes one part to a six-slot champion. The finished build is easy to inspect and share; private lobbies add group reveals and voting.
 
 ## Operating Context
 
-The first release is an untimed solo browser game that can be screen-shared with friends. A player drafts through six rounds and shares the result. Planned private link-based lobbies add multiplayer: a host creates a room, friends join with temporary nicknames, participants draft through synchronized rounds, then reveal and vote on completed builds. The core game is anonymous and requires no account. Account-backed profiles and persistent build history may be added later without becoming prerequisites.
+The first release is an untimed solo browser game that can be screen-shared with friends. A player drafts through six rounds and shares the result. Private link-based lobbies add multiplayer: a host creates a room, friends join with temporary nicknames, participants draft through synchronized rounds, then reveal and vote on completed builds. The core game is anonymous and requires no account. Account-backed profiles and persistent build history may be added later without becoming prerequisites.
 
 ## Capabilities and Constraints
 
@@ -41,10 +41,13 @@ The first release is an untimed solo browser game that can be screen-shared with
 - Multiplayer follows the solo release and prioritizes shareable private lobby links, synchronized rounds, temporary nicknames, a shared reveal, and in-lobby voting.
 - Hosts choose Same Champs or Random Champs in the waiting lobby; Same Champs is the default. Champion offers are selected adaptively each round using every player's remaining slots and component eligibility. Rematches always use fresh champions.
 - Multiplayer uses synchronized rounds with host-selected 15-, 30-, or 45-second presets; 30 seconds is the default. A round advances when everyone locks or its timer expires. Timeout makes a random compatible pick.
+- When same-origin browser storage is available, that browser profile has one random browser identity and may hold one active non-display seat across rooms. The seat stays with its room until the player explicitly leaves or the room expires. This is a browser-storage boundary, not an account or a guarantee that one person cannot join from another profile or device; there is no one-seat-per-IP rule, though request rate limits still apply. Shared displays use a separate role and do not take a player seat.
+- Navigating between Solo and Rooms keeps the active room session available. Opening the saved session in another tab transfers control of the same seat; it does not add another participant. Disconnecting or changing app routes does not count as leaving.
 - Lobbies support 2–8 drafting players, up to 20 spectators, and one shared display connection. At least two ready players are required to start; late arrivals become spectators and may vote.
 - The lightweight Jackbox-inspired shared display shows room and QR joining, timers, player progress, current champion offers, reveals, voting, and results. In Random Champs it shows each player's current champion. Locked component choices remain private until the reveal.
 - Voting is a secret single ballot with no self-voting. Quick, Standard, and Relaxed lobbies use 20-, 30-, and 45-second voting timers respectively; voting ends early when all connected voters lock, non-voters abstain, and ties are shared victories.
 - Disconnected players remain in the draft and receive random timeout picks. A private reconnect token restores them; host control migrates to the longest-connected active player. Their completed builds remain eligible for reveal and voting.
+- Leaving is an explicit, authenticated action that releases the browser identity for another room. Leaving before reveal begins removes the seat and its unshown build. After reveal starts, that completed build remains a candidate through the current results and any ballot already cast remains recorded; the departed seat cannot vote further or join the next rematch. Rejoining where allowed creates a new spectator seat.
 - Anonymous lobby state expires after one hour of inactivity.
 - Temporary nicknames are 2–16 visible characters, escaped as text, basic profanity-filtered, and automatically suffixed on collision. Hosts may remove participants. The MVP has no chat, custom build names, captions, or manual renaming.
 - Solo results receive clean, stable shareable URLs. Each result pins its champion-data version so old links can continue rendering against historical snapshots while that snapshot remains available. Initial social previews use generic BuildChamp branding rather than dynamically generated build cards.

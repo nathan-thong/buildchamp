@@ -12,12 +12,15 @@ import {
 import {
   addLobbyParticipant,
   advanceExpiredDraftRound,
+  advanceExpiredLobbyPhase,
   connectLobbyParticipant,
   createLobbyState,
   disconnectLobbyParticipant,
   handleLobbyCommand,
   isLobbyExpired,
   LOBBY_SPEED_DURATIONS_MS,
+  LOBBY_VOTE_DURATIONS_MS,
+  leaveLobbyParticipant,
   projectLobby,
   validateNickname,
   type LobbyCommandResult,
@@ -72,7 +75,7 @@ describe('lobby state', () => {
       state,
       { participantId: host.id, connectionId: host.connectionId },
       ClientCommandSchema.parse({
-        protocolVersion: 2,
+        protocolVersion: 3,
         commandId: `speed-${speed}`,
         roomRevision: state.revision,
         type: 'host.settings',
@@ -98,11 +101,12 @@ describe('lobby state', () => {
     if (!started.ok) throw new Error('Expected the draft to start.');
 
     const joined = addLobbyParticipant(started.state, {
-      protocolVersion: 2,
+      protocolVersion: 3,
       participantId: id(3),
       nickname: 'Late arrival',
       requestedRole: 'player',
       reconnectTokenHash: TOKEN_HASH,
+      identityKeyHash: null,
       now: 103,
     });
     expect(joined.participant.role).toBe('spectator');
@@ -112,29 +116,32 @@ describe('lobby state', () => {
   it('enforces the player, spectator and shared-display limits', () => {
     let state = createRoom(8);
     const fullPlayerRequest = addLobbyParticipant(state, {
-      protocolVersion: 2,
+      protocolVersion: 3,
       participantId: id(20),
       nickname: 'Overflow player',
       requestedRole: 'player',
       reconnectTokenHash: 'd'.repeat(64),
+      identityKeyHash: null,
       now: 100,
     });
     expect(fullPlayerRequest.participant.role).toBe('spectator');
     state = fullPlayerRequest.state;
 
     const display = addLobbyParticipant(state, {
-      protocolVersion: 2,
+      protocolVersion: 3,
       participantId: id(21),
       requestedRole: 'display',
       reconnectTokenHash: 'e'.repeat(64),
+      identityKeyHash: null,
       now: 101,
     });
     expect(() =>
       addLobbyParticipant(display.state, {
-        protocolVersion: 2,
+        protocolVersion: 3,
         participantId: id(22),
         requestedRole: 'display',
         reconnectTokenHash: 'f'.repeat(64),
+        identityKeyHash: null,
         now: 102,
       }),
     ).toThrow(/shared display/i);
@@ -142,21 +149,23 @@ describe('lobby state', () => {
 
     for (let index = 0; index < 19; index += 1) {
       state = addLobbyParticipant(state, {
-        protocolVersion: 2,
+        protocolVersion: 3,
         participantId: id(30 + index),
         nickname: `Watcher ${index}`,
         requestedRole: 'spectator',
         reconnectTokenHash: 'e'.repeat(64),
+        identityKeyHash: null,
         now: 110 + index,
       }).state;
     }
     expect(() =>
       addLobbyParticipant(state, {
-        protocolVersion: 2,
+        protocolVersion: 3,
         participantId: id(60),
         nickname: 'Last watcher',
         requestedRole: 'spectator',
         reconnectTokenHash: 'f'.repeat(64),
+        identityKeyHash: null,
         now: 140,
       }),
     ).toThrow(/spectator limit/i);
@@ -167,17 +176,18 @@ describe('lobby state', () => {
   it('suffixes colliding nicknames and lets only the host remove participants', () => {
     const state = createRoom(2);
     const joined = addLobbyParticipant(state, {
-      protocolVersion: 2,
+      protocolVersion: 3,
       participantId: id(3),
       nickname: 'Player 2',
       requestedRole: 'spectator',
       reconnectTokenHash: 'b'.repeat(64),
+      identityKeyHash: null,
       now: 300,
     });
     expect(joined.participant.nickname).toBe('Player 2 (2)');
 
     const command = ClientCommandSchema.parse({
-      protocolVersion: 2,
+      protocolVersion: 3,
       commandId: 'remove-player',
       roomRevision: joined.state.revision,
       type: 'host.remove',
@@ -198,7 +208,7 @@ describe('lobby state', () => {
     }
 
     const nonHostCommand = ClientCommandSchema.parse({
-      protocolVersion: 2,
+      protocolVersion: 3,
       commandId: 'non-host-remove',
       roomRevision: joined.state.revision,
       type: 'host.remove',
@@ -369,7 +379,7 @@ describe('lobby state', () => {
     ).toBe(timeoutState);
   });
 
-  it('keeps final builds private after six synchronized rounds', () => {
+  it('reveals only the staged build permitted by authoritative phase state', () => {
     let state = createRoom(2);
     state = markReady(state, 1, 'complete-host-ready', 800);
     state = markReady(state, 2, 'complete-player-ready', 801);
@@ -388,15 +398,318 @@ describe('lobby state', () => {
       );
     }
 
-    expect(state.phase).toBe('draft-complete');
+    expect(state.phase).toBe('revealing');
     expect(Object.keys(state.completedRunsByParticipantId)).toEqual([id(1), id(2)]);
     const projection = projectLobby(state, { role: 'display', participantId: null }, SNAPSHOT);
-    expect(projection.currentRound).toBe(6);
-    expect(projection.lockedCount).toBe(2);
+    expect(projection.candidateCount).toBe(2);
+    expect(projection.revealedCount).toBe(1);
+    expect(projection.builds).toHaveLength(1);
     expect(projection.offer).toBeUndefined();
     expect(JSON.stringify(projection)).not.toContain('completedRunsByParticipantId');
     expect(JSON.stringify(projection)).not.toContain('lockedBuild');
-    expect(JSON.stringify(projection)).not.toContain('componentId');
+    expect(projection.builds[0]?.participantId).toBe(id(1));
+    expect(projection.builds[1]).toBeUndefined();
+  });
+
+  it('keeps ballots secret, rejects self-votes, settles tied results, and starts a fresh rematch', () => {
+    let state = completeTwoPlayerDraft(createRoom(2));
+    expect(state.phase).toBe('revealing');
+    expect(state.revealedCount).toBe(1);
+
+    const firstStep = state.deadlineAt;
+    if (firstStep === null) throw new Error('Expected a reveal deadline.');
+    state = advanceExpiredLobbyPhase(state, {
+      now: firstStep,
+      snapshot: SNAPSHOT,
+      random: createSeededRandom(12),
+    });
+    expect(state.revealedCount).toBe(2);
+    expect(state.phase).toBe('revealing');
+
+    const secondStep = state.deadlineAt;
+    if (secondStep === null) throw new Error('Expected the next reveal deadline.');
+    const beforeDeadline = advanceExpiredLobbyPhase(state, {
+      now: secondStep - 1,
+      snapshot: SNAPSHOT,
+      random: createSeededRandom(13),
+    });
+    expect(beforeDeadline).toBe(state);
+    state = advanceExpiredLobbyPhase(state, {
+      now: secondStep,
+      snapshot: SNAPSHOT,
+      random: createSeededRandom(14),
+    });
+    expect(state.phase).toBe('voting');
+    expect(state.deadlineAt).toBe(secondStep + LOBBY_VOTE_DURATIONS_MS.standard);
+    const votePhaseDeadlineAt = state.deadlineAt;
+
+    const hostProjection = projectLobby(state, { role: 'host', participantId: id(1) }, SNAPSHOT);
+    expect(hostProjection.builds).toHaveLength(2);
+    expect(hostProjection.votableParticipantIds).toEqual([id(2)]);
+    expect(hostProjection.voteTotals).toBeUndefined();
+    expect(JSON.stringify(hostProjection)).not.toContain('votesByIdentityHash');
+
+    const selfVote = lobbyCommand(
+      state,
+      1,
+      'self-vote',
+      'player.vote',
+      { participantId: id(1) },
+      20_000,
+    );
+    expect(selfVote.ok).toBe(false);
+    if (!selfVote.ok) expect(selfVote.code).toBe('unauthorized');
+
+    const hostVote = lobbyCommand(
+      state,
+      1,
+      'host-vote',
+      'player.vote',
+      { participantId: id(2) },
+      20_001,
+    );
+    if (!hostVote.ok) throw new Error(`Host vote failed: ${hostVote.code}`);
+    state = hostVote.state;
+    expect(state.phase).toBe('voting');
+    const privateProjection = projectLobby(state, { role: 'host', participantId: id(1) }, SNAPSHOT);
+    expect(privateProjection.selfHasVoted).toBe(true);
+    expect(privateProjection.votesCastCount).toBe(1);
+    expect(privateProjection.voteTotals).toBeUndefined();
+    expect(JSON.stringify(privateProjection)).not.toContain('votesByIdentityHash');
+
+    const playerVote = lobbyCommand(
+      state,
+      2,
+      'player-vote',
+      'player.vote',
+      { participantId: id(1) },
+      20_002,
+    );
+    if (!playerVote.ok) throw new Error(`Player vote failed: ${playerVote.code}`);
+    state = playerVote.state;
+    expect(state.phase).toBe('results');
+    const resultProjection = projectLobby(
+      state,
+      { role: 'display', participantId: null },
+      SNAPSHOT,
+    );
+    expect(resultProjection.voteTotals).toEqual([
+      { participantId: id(1), votes: 1 },
+      { participantId: id(2), votes: 1 },
+    ]);
+    expect(resultProjection.winnerIds).toEqual([id(1), id(2)]);
+
+    const retry = handleLobbyCommand(
+      state,
+      { participantId: id(2), connectionId: id(102) },
+      ClientCommandSchema.parse({
+        protocolVersion: 3,
+        commandId: 'player-vote',
+        roomRevision: state.revision - 1,
+        type: 'player.vote',
+        payload: { participantId: id(1), phaseDeadlineAt: votePhaseDeadlineAt },
+      }),
+      { now: 20_003, snapshot: SNAPSHOT, random: createSeededRandom(15) },
+    );
+    expect(retry.ok).toBe(true);
+    if (retry.ok) {
+      expect(retry.duplicate).toBe(true);
+      expect(retry.state.revision).toBe(state.revision);
+    }
+
+    const rematch = lobbyCommand(state, 1, 'rematch', 'host.rematch', {}, 20_004);
+    if (!rematch.ok) throw new Error(`Rematch failed: ${rematch.code}`);
+    expect(rematch.state.phase).toBe('drafting');
+    expect(Object.keys(rematch.state.draftsByParticipantId)).toEqual([id(1), id(2)]);
+    expect(rematch.state.votesByIdentityHash).toEqual({});
+    expect(rematch.state.revealedCount).toBe(0);
+    expect(rematch.state.deadlineAt).toBe(20_004 + LOBBY_SPEED_DURATIONS_MS.standard);
+  });
+
+  it('counts concurrent ballots issued from the same voting revision exactly once', () => {
+    const voting = enterVoting(completeTwoPlayerDraft(createRoom(2)));
+    const baselineRevision = voting.revision;
+    const phaseDeadlineAt = voting.deadlineAt;
+    if (phaseDeadlineAt === null) throw new Error('Expected a voting deadline.');
+
+    const hostVote = lobbyCommand(
+      voting,
+      1,
+      'simultaneous-host-vote',
+      'player.vote',
+      { participantId: id(2), phaseDeadlineAt },
+      phaseDeadlineAt - 2,
+    );
+    if (!hostVote.ok) throw new Error(`Host vote failed: ${hostVote.code}`);
+    expect(hostVote.state.phase).toBe('voting');
+    expect(hostVote.state.revision).toBe(baselineRevision + 1);
+
+    const playerVote = handleLobbyCommand(
+      hostVote.state,
+      { participantId: id(2), connectionId: id(102) },
+      ClientCommandSchema.parse({
+        protocolVersion: 3,
+        commandId: 'simultaneous-player-vote',
+        roomRevision: baselineRevision,
+        type: 'player.vote',
+        payload: { participantId: id(1), phaseDeadlineAt },
+      }),
+      { now: phaseDeadlineAt - 1, snapshot: SNAPSHOT, random: createSeededRandom(16) },
+    );
+    if (!playerVote.ok) throw new Error(`Player vote failed: ${playerVote.code}`);
+    expect(playerVote.state.phase).toBe('results');
+    expect(Object.keys(playerVote.state.votesByIdentityHash)).toHaveLength(2);
+    expect(Object.values(playerVote.state.votesByIdentityHash).sort()).toEqual([id(1), id(2)]);
+
+    const retry = handleLobbyCommand(
+      playerVote.state,
+      { participantId: id(2), connectionId: id(102) },
+      ClientCommandSchema.parse({
+        protocolVersion: 3,
+        commandId: 'simultaneous-player-vote',
+        roomRevision: baselineRevision,
+        type: 'player.vote',
+        payload: { participantId: id(1), phaseDeadlineAt },
+      }),
+      { now: phaseDeadlineAt, snapshot: SNAPSHOT, random: createSeededRandom(17) },
+    );
+    expect(retry.ok).toBe(true);
+    if (retry.ok) {
+      expect(retry.duplicate).toBe(true);
+      expect(retry.state.votesByIdentityHash).toEqual(playerVote.state.votesByIdentityHash);
+    }
+  });
+
+  it('rejects votes from a different or expired voting phase', () => {
+    const voting = enterVoting(completeTwoPlayerDraft(createRoom(2)));
+    const phaseDeadlineAt = voting.deadlineAt;
+    if (phaseDeadlineAt === null) throw new Error('Expected a voting deadline.');
+    const actor = voting.participants.find(({ id: participantId }) => participantId === id(1));
+    if (!actor?.connectionId) throw new Error('Expected a connected host.');
+
+    const stalePhase = handleLobbyCommand(
+      voting,
+      { participantId: actor.id, connectionId: actor.connectionId },
+      ClientCommandSchema.parse({
+        protocolVersion: 3,
+        commandId: 'stale-voting-phase',
+        roomRevision: voting.revision,
+        type: 'player.vote',
+        payload: { participantId: id(2), phaseDeadlineAt: phaseDeadlineAt - 1 },
+      }),
+      { now: phaseDeadlineAt - 1, snapshot: SNAPSHOT, random: createSeededRandom(18) },
+    );
+    expect(stalePhase.ok).toBe(false);
+    if (!stalePhase.ok) expect(stalePhase.code).toBe('wrong_phase');
+
+    const expired = lobbyCommand(
+      voting,
+      1,
+      'expired-vote',
+      'player.vote',
+      { participantId: id(2), phaseDeadlineAt },
+      phaseDeadlineAt,
+    );
+    expect(expired.ok).toBe(false);
+    if (!expired.ok) expect(expired.code).toBe('wrong_phase');
+  });
+
+  it('keeps departed completed builds immutable and removes departed seats from the rematch', () => {
+    let state = completeTwoPlayerDraft(createRoom(2));
+    const leave = leaveLobbyParticipant(state, id(2), '2'.repeat(64), 15_000);
+    expect(leave.removed).toBe(true);
+    if (!leave.state) throw new Error('The room should remain after one player leaves.');
+    state = leave.state;
+    expect(state.phase).toBe('revealing');
+    expect(state.completedRunsByParticipantId[id(2)]).toBeTruthy();
+    expect(
+      state.participants.find(({ id: participantId }) => participantId === id(2))?.hasLeft,
+    ).toBe(true);
+
+    while (state.phase === 'revealing') {
+      const result = lobbyCommand(
+        state,
+        1,
+        `reveal-${state.revealedCount}`,
+        'host.reveal.advance',
+        {},
+        15_001 + state.revealedCount,
+      );
+      if (!result.ok) throw new Error(`Reveal advance failed: ${result.code}`);
+      state = result.state;
+    }
+    expect(state.phase).toBe('voting');
+    expect(LOBBY_VOTE_DURATIONS_MS.quick).toBe(20_000);
+    const projection = projectLobby(state, { role: 'host', participantId: id(1) }, SNAPSHOT);
+    expect(projection.builds).toHaveLength(2);
+    expect(projection.builds.find(({ participantId }) => participantId === id(2))?.hasLeft).toBe(
+      true,
+    );
+    expect(projection.votableParticipantIds).toEqual([id(2)]);
+
+    const vote = lobbyCommand(
+      state,
+      1,
+      'vote-for-departed',
+      'player.vote',
+      { participantId: id(2) },
+      16_000,
+    );
+    if (!vote.ok) throw new Error(`Vote for retained build failed: ${vote.code}`);
+    expect(vote.state.phase).toBe('results');
+    const rematch = lobbyCommand(vote.state, 1, 'single-seat-rematch', 'host.rematch', {}, 16_001);
+    if (!rematch.ok) throw new Error(`Rematch transition failed: ${rematch.code}`);
+    expect(rematch.state.phase).toBe('waiting');
+    expect(rematch.state.participants.map(({ id: participantId }) => participantId)).toEqual([
+      id(1),
+    ]);
+    expect(rematch.state.participants[0]?.ready).toBe(false);
+    expect(rematch.state.completedRunsByParticipantId).toEqual({});
+  });
+
+  it('sends every completed build directly to reveal in all-at-once mode', () => {
+    let state = createRoom(2);
+    const settings = lobbyCommand(
+      state,
+      1,
+      'all-at-once-settings',
+      'host.settings',
+      { mode: 'same', speed: 'standard', revealOrder: 'all-at-once' },
+      200,
+    );
+    if (!settings.ok) throw new Error(`Settings failed: ${settings.code}`);
+    state = settings.state;
+    state = markReady(state, 1, 'all-at-once-host-ready', 201);
+    state = markReady(state, 2, 'all-at-once-player-ready', 202);
+    const started = startLobby(state, 1, 'all-at-once-start', 203);
+    if (!started.ok) throw new Error('Expected the all-at-once draft to start.');
+    state = started.state;
+    state = completeTwoPlayerDraft(state);
+    expect(state.phase).toBe('revealing');
+    expect(state.revealedCount).toBe(2);
+    expect(
+      projectLobby(state, { role: 'display', participantId: null }, SNAPSHOT).builds,
+    ).toHaveLength(2);
+  });
+
+  it('advances to results at the voting deadline with no automatic score or winner', () => {
+    const state = enterVoting(completeTwoPlayerDraft(createRoom(2)));
+    const ended = advanceExpiredLobbyPhase(state, {
+      now: state.deadlineAt as number,
+      snapshot: SNAPSHOT,
+      random: createSeededRandom(20),
+    });
+    expect(ended.phase).toBe('results');
+    const projection = projectLobby(ended, { role: 'display', participantId: null }, SNAPSHOT);
+    expect(projection.voteTotals?.every(({ votes }) => votes === 0)).toBe(true);
+    expect(projection.winnerIds).toEqual([]);
+    expect(
+      advanceExpiredLobbyPhase(ended, {
+        now: ended.expiresAt,
+        snapshot: SNAPSHOT,
+        random: createSeededRandom(21),
+      }),
+    ).toBe(ended);
   });
 
   it('migrates the host to the longest-connected player when the host disconnects', () => {
@@ -448,11 +761,12 @@ describe('lobby state', () => {
     expect(JSON.stringify(playerProjection)).not.toContain(hostOfferId as string);
 
     const spectator = addLobbyParticipant(state, {
-      protocolVersion: 2,
+      protocolVersion: 3,
       participantId: id(3),
       nickname: 'Watcher',
       requestedRole: 'spectator',
       reconnectTokenHash: 'b'.repeat(64),
+      identityKeyHash: null,
       now: 304,
     });
     const spectatorProjection = projectLobby(
@@ -472,10 +786,11 @@ describe('lobby state', () => {
     const started = startLobby(state, 1, 'start', 402);
     if (!started.ok) throw new Error('Expected the draft to start.');
     const display = addLobbyParticipant(started.state, {
-      protocolVersion: 2,
+      protocolVersion: 3,
       participantId: id(3),
       requestedRole: 'display',
       reconnectTokenHash: 'c'.repeat(64),
+      identityKeyHash: null,
       now: 403,
     });
     const projection = projectLobby(
@@ -592,10 +907,11 @@ describe('lobby state', () => {
       });
 
       const display = addLobbyParticipant(state, {
-        protocolVersion: 2,
+        protocolVersion: 3,
         participantId: id(3),
         requestedRole: 'display',
         reconnectTokenHash: 'c'.repeat(64),
+        identityKeyHash: null,
         now: 550,
       });
       const projection = projectLobby(
@@ -646,16 +962,18 @@ function createRoom(playerCount: number): LobbyState {
     hostParticipantId: id(1),
     hostNickname: 'Host one',
     reconnectTokenHash: TOKEN_HASH,
+    identityKeyHash: null,
     now: 10,
   });
   state = connectLobbyParticipant(state, id(1), id(101), 20);
   for (let participant = 2; participant <= playerCount; participant += 1) {
     const added = addLobbyParticipant(state, {
-      protocolVersion: 2,
+      protocolVersion: 3,
       participantId: id(participant),
       nickname: `Player ${participant}`,
       requestedRole: 'player',
       reconnectTokenHash: participant.toString(16).repeat(64),
+      identityKeyHash: null,
       now: 20 + participant,
     });
     state = connectLobbyParticipant(
@@ -702,7 +1020,7 @@ function lockPlayer(
   const selectedSlot = slot ?? draft.offer.selectableSlots[0];
   if (!selectedSlot) throw new Error('The current offer has no selectable slot.');
   const command = ClientCommandSchema.parse({
-    protocolVersion: 2,
+    protocolVersion: 3,
     commandId,
     roomRevision,
     type: 'player.lock',
@@ -733,7 +1051,7 @@ function startLobby(
     state,
     { participantId: actor.id, connectionId: actor.connectionId },
     ClientCommandSchema.parse({
-      protocolVersion: 2,
+      protocolVersion: 3,
       commandId,
       roomRevision: state.revision,
       type: 'host.start',
@@ -743,9 +1061,68 @@ function startLobby(
   );
 }
 
+function completeTwoPlayerDraft(initial: LobbyState): LobbyState {
+  let state = initial;
+  if (state.phase === 'waiting') {
+    state = markReady(state, 1, 'complete-helper-host-ready', 900);
+    state = markReady(state, 2, 'complete-helper-player-ready', 901);
+    const started = startLobby(state, 1, 'complete-helper-start', 1_000);
+    if (!started.ok) throw new Error(`Draft start failed: ${started.code}`);
+    state = started.state;
+  }
+  if (state.phase !== 'drafting') throw new Error(`Expected drafting, received ${state.phase}.`);
+  for (let round = 1; round <= 6; round += 1) {
+    state = lockPlayer(state, 1, `complete-host-${round}`, 1_000 + round * 2);
+    state = lockPlayer(state, 2, `complete-player-${round}`, 1_001 + round * 2, state.revision - 1);
+  }
+  return state;
+}
+
+function enterVoting(initial: LobbyState): LobbyState {
+  let state = initial;
+  while (state.phase === 'revealing') {
+    const result = lobbyCommand(
+      state,
+      1,
+      `enter-voting-${state.revealedCount}`,
+      'host.reveal.advance',
+      {},
+      10_000 + state.revealedCount,
+    );
+    if (!result.ok) throw new Error(`Reveal advance failed: ${result.code}`);
+    state = result.state;
+  }
+  if (state.phase !== 'voting') throw new Error(`Expected voting, received ${state.phase}.`);
+  return state;
+}
+
+function lobbyCommand(
+  state: LobbyState,
+  participant: number,
+  commandId: string,
+  type: string,
+  payload: Record<string, unknown>,
+  now: number,
+): LobbyCommandResult {
+  const actor = state.participants.find((candidate) => candidate.id === id(participant));
+  if (!actor?.connectionId) throw new Error(`Participant ${participant} is not connected.`);
+  return handleLobbyCommand(
+    state,
+    { participantId: actor.id, connectionId: actor.connectionId },
+    ClientCommandSchema.parse({
+      protocolVersion: 3,
+      commandId,
+      roomRevision: state.revision,
+      type,
+      payload: type === 'player.vote' ? { ...payload, phaseDeadlineAt: state.deadlineAt } : payload,
+    }),
+    { now, snapshot: SNAPSHOT, random: createSeededRandom(now) },
+  );
+}
+
 function readyCommand(commandId: string, roomRevision: number, ready: boolean): ClientCommand {
   return ClientCommandSchema.parse({
-    protocolVersion: 2,
+    protocolVersion: 3,
     commandId,
     roomRevision,
     type: 'player.ready',
@@ -759,7 +1136,7 @@ function settingsCommand(
   mode: 'same' | 'random',
 ): ClientCommand {
   return ClientCommandSchema.parse({
-    protocolVersion: 2,
+    protocolVersion: 3,
     commandId,
     roomRevision,
     type: 'host.settings',

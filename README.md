@@ -1,25 +1,27 @@
 # BuildChamp
 
-BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. Local private rooms now support synchronized six-round drafts in Same Champs and Random Champs modes. Group reveals and voting remain planned, and the public Workers.dev release is still solo-only.
+BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. Local private rooms support synchronized drafts, group reveals, secret voting, results, and rematches in Same Champs and Random Champs modes. The local multiplayer implementation is protocol v3; the deployed Workers.dev API was observed responding as protocol v2 on 2026-10-11, and the current local changes have not been deployed.
 
 A solo run has six rounds. In each round, permanently lock one remaining component—**Body, Q, W, E, R, or Passive**—from the offered champion. There are no skips or rerolls. Build strength stays subjective; players decide which combination wins.
 
 ## Project Status
 
-Slice 7 technical QA and Slice 8 deployment preparation are complete. Slice 9's server-authoritative
-room foundation and Slice 10's participant screens, synchronized drafting, and shared display are
-implemented and verified locally. The local app has `/lobby` for hosts, `/room/:code` for players
-and spectators, and `/display/:code` for the QR-enabled shared screen. Drafts support Same Champs
-and Random Champs, 15-, 30-, or 45-second shared deadlines, early advance when all player seats
-lock, reconnect before the deadline, and legal timeout autopicks for unresolved seats. A finished
-draft remains private until the later reveal slice. The local Worker API exposes `POST /api/rooms`,
-`GET /api/rooms/:code`, `POST /api/rooms/:code/join`, and the authenticated
-`GET /api/rooms/:code/socket` WebSocket route. These backend changes have not been deployed; the
-currently live Workers.dev site remains the solo-only release at
-[buildchamp.nathan-thong.workers.dev](https://buildchamp.nathan-thong.workers.dev). The maintainer
-reports Riot Developer Portal approval dated 2026-09-28, but the approval record is not in this
-repository. The source inventory for 38 CommunityDragon image references is complete; their Riot
-eligibility remains unconfirmed, so release sign-off is pending. The repository contains a validated English Data Dragon
+Slice 9's server-authoritative room foundation and Slices 10–11's participant screens, synchronized
+drafting, shared display, reveal, voting, results, rematch, and explicit Leave are implemented and
+verified locally. The local app has `/lobby` for hosts, `/room/:code` for players and spectators,
+and `/display/:code` for the QR-enabled shared screen. A global Rooms session stays available while
+navigating through the app. When browser storage is available, one same-origin browser profile can
+hold one active non-display room seat across rooms until Leave or room expiry; this does not identify a person
+across browser profiles or devices or impose a one-seat-per-IP rule.
+The local Worker API uses protocol v3 and supports create, join, recover, leave, room lookup, and
+WebSocket connections. On 2026-10-11, a read-only request to the deployed `/api/rooms` returned its
+protocol-v2 method response and `/api/rooms/recover` returned 404. No live room was created or
+joined, so the public room journey was not tested; these checks do not establish that the deployed
+service supports this local Slice 11 behavior. See [DEPLOYMENT.md](./DEPLOYMENT.md) for the
+verified live/local distinction. The maintainer reports Riot Developer Portal approval dated
+2026-09-28, but the approval record is not in this repository. The source inventory for 38
+CommunityDragon image references is complete; their Riot eligibility remains unconfirmed, so
+release sign-off is pending. The repository contains a validated English Data Dragon
 16.17.1 snapshot, retained 15.17.1 snapshot, deterministic source/cache/normalize/emit stages,
 reviewed champion compatibility entries covering shared systems and transformed states, a generated
 patch report, and a pure deterministic engine with adaptive legal-path checking. The `/solo` route
@@ -34,12 +36,12 @@ and `/build/demo` remain clearly labelled foundation/demo fixtures, while comple
 use retained champion snapshots. See
 [CURRENT_STATE.md](./CURRENT_STATE.md) for the concise, maintained implementation handoff.
 
-The plan is:
+The product sequence is:
 
 1. Untimed solo draft
 2. Shareable build results
-3. Private friend lobbies (local synchronized draft and shared display implemented; reveal and voting planned)
-4. Shared reveal and voting
+3. Private friend lobbies (local synchronized draft through rematch implemented)
+4. Slice 12 reliability and release gates
 5. Public build rankings only if group play proves useful; accounts remain deferred
 
 ## Stack
@@ -51,9 +53,10 @@ The plan is:
 - Cloudflare Workers Static Assets for the solo release
 - Pinned Wrangler CLI for preview and production deployment
 - Cloudflare Worker, native WebSockets, and one SQLite-backed Durable Object per multiplayer lobby
+- A separate admission-only Durable Object serializes one active room claim per browser identity
 - Controlled, versioned Riot Data Dragon snapshots for champion data and default artwork
 
-Solo play runs in the browser without a gameplay backend. After its first online visit, the app shell and versioned code can reload offline; remote champion artwork may fall back when no network is available. The local lobby foundation uses a Cloudflare Worker and one SQLite-backed Durable Object per room, but the public deployment has not received that backend change.
+Solo play runs in the browser without a gameplay backend. After its first online visit, the app shell and versioned code can reload offline; remote champion artwork may fall back when no network is available. Local rooms use a Cloudflare Worker, one SQLite-backed Durable Object per room, and the admission-only identity coordinator. This local protocol-v3 work has not been deployed.
 
 ## Development Documentation
 
@@ -98,7 +101,7 @@ pnpm preview
 pnpm test:e2e:multiplayer
 ```
 
-The solo browser suite uses Playwright across Chromium and WebKit, including offline refresh and axe WCAG A/AA checks. The separate `pnpm test:e2e:multiplayer` command builds the app, starts local Wrangler Workers with isolated Durable Object stores, and verifies both six-round draft modes, participant and display screens, QR joining, hidden choices, reconnect, deadline autopick, concurrent locks, idempotent retries, WebSocket authorization, role projections, malformed and oversized requests, rate limits, and versioned SQLite state restoration after a Worker restart. `pnpm test` covers the 15-, 30-, and 45-second deadline presets. Neither command deploys anything. Install the browser
+The solo browser suite uses Playwright across Chromium and WebKit, including offline refresh and axe WCAG A/AA checks. The separate `pnpm test:e2e:multiplayer` command builds the app and runs the transport, browser-journey, and restart specs in separate local Worker processes with isolated Durable Object stores. It verifies both champion modes and reveal settings, participant and display screens, QR joining, hidden choices and ballots, persistent navigation, second-tab takeover, voting, ties, results, rematch, one-seat admission, Leave, recovery, concurrent identity creation, reconnect, deadline autopick, idempotent retries, WebSocket authorization, malformed and oversized requests, rate limits, and versioned SQLite restoration. `pnpm test` covers the 15-, 30-, and 45-second draft and voting deadline presets. Neither command deploys anything. Install the browser
 binaries once on a new machine, then run:
 
 ```sh
@@ -122,9 +125,10 @@ release containing Riot data or assets.
 
 Cloudflare deployment preparation is included in the repository. Run `pnpm build:cloudflare` to
 build and verify the deployable assets, or `pnpm run cloudflare:dev` for a local Worker smoke test.
-The Slice 9 API routes and Slice 10 room screens are available in local Worker runs; the currently deployed
-Workers.dev site still serves the solo-only release. See [DEPLOYMENT.md](./DEPLOYMENT.md) for the
-release gate, deployment, rollback, and monitoring guidance.
+The Slice 9–11 routes and room screens are available in local Worker runs. The live API returned a
+protocol-v2 method response on 2026-10-11, while the local implementation is protocol v3; no live
+room journey was performed. See [DEPLOYMENT.md](./DEPLOYMENT.md) for the migration and release
+distinction, plus deployment, rollback, and monitoring guidance.
 
 ## Core Rules
 

@@ -144,6 +144,32 @@ describe('draft engine', () => {
     }
   });
 
+  it('continues Same Champs with the sole remaining player after an explicit leave', () => {
+    let player: RunState = createRun(NORMAL_DRAFT_FIXTURE, createSeededRandom(51));
+    if (player.status !== 'drafting') throw new Error('The fixture should be drafting.');
+    player = lockSelection(
+      NORMAL_DRAFT_FIXTURE,
+      player,
+      selectionForSlot(player.offer, 'body'),
+      createSeededRandom(52),
+    );
+    if (player.status !== 'drafting') throw new Error('The player should have a remaining draft.');
+    const offers = generateSharedOffers(NORMAL_DRAFT_FIXTURE, [player], createSeededRandom(53));
+    expect(offers).toHaveLength(1);
+    const offer = offers[0];
+    if (!offer) throw new Error('The sole player should receive a shared offer.');
+    expect(offer.selectableSlots).not.toContain('body');
+    for (const slot of offer.selectableSlots) {
+      expect(
+        hasLegalContinuationAfterSelection(
+          NORMAL_DRAFT_FIXTURE,
+          player,
+          selectionForSlot(offer, slot),
+        ),
+      ).toBe(true);
+    }
+  });
+
   it('never repeats a base champion across variants', () => {
     for (let seed = 1; seed <= 250; seed += 1) {
       const completed = runToCompletion(VARIANT_DRAFT_FIXTURE, createSeededRandom(seed));

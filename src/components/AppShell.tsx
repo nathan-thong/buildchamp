@@ -7,6 +7,7 @@ import { AppLink } from './AppLink';
 import { BrandMark } from './BrandMark';
 import { MuteControl } from './MuteControl';
 import { SiteFooter } from './SiteFooter';
+import { useOptionalLobbySession } from '../lib/lobby-session-context';
 
 type AppShellProps = {
   readonly children: ReactNode;
@@ -21,6 +22,8 @@ function navClass(isCurrent: boolean): string {
 
 export function AppShell({ children, currentRoute, displayMode = false, storage }: AppShellProps) {
   const [muted, setMuted] = useState(() => readPreferences(storage).muted);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const lobby = useOptionalLobbySession();
   const soundControllerRef = useRef<SoundController | null>(null);
 
   if (!soundControllerRef.current) {
@@ -28,6 +31,17 @@ export function AppShell({ children, currentRoute, displayMode = false, storage 
   }
 
   const soundController = soundControllerRef.current;
+  const isRoomRoute = currentRoute === 'room';
+
+  async function leaveCurrentRoom() {
+    if (!lobby) return;
+    setLeaveError(null);
+    try {
+      await lobby.leaveActiveSession();
+    } catch (error) {
+      setLeaveError(error instanceof Error ? error.message : 'The room could not be left.');
+    }
+  }
 
   useEffect(() => {
     writePreferences({ version: 1, muted }, storage);
@@ -89,6 +103,43 @@ export function AppShell({ children, currentRoute, displayMode = false, storage 
             <MuteControl muted={muted} onToggle={() => setMuted((current) => !current)} />
           </div>
         </header>
+
+        {!displayMode && lobby?.session && (
+          <aside aria-label="Active room" className="active-room-banner">
+            <div className="active-room-banner__copy">
+              <strong>Room {lobby.session.roomCode}</strong>
+              <span>
+                {lobby.status === 'connected'
+                  ? 'Connected in this browser'
+                  : lobby.status === 'blocked'
+                    ? 'This tab no longer controls the room'
+                    : 'Reconnecting to your room'}
+              </span>
+            </div>
+            {!isRoomRoute && (
+              <div className="active-room-banner__actions">
+                <AppLink
+                  className="button button--secondary button--small"
+                  href={`/room/${lobby.session.roomCode}`}
+                >
+                  Return to room
+                </AppLink>
+                <button
+                  className="text-action"
+                  onClick={() => void leaveCurrentRoom()}
+                  type="button"
+                >
+                  Leave room
+                </button>
+              </div>
+            )}
+            {leaveError && (
+              <span className="active-room-banner__error" role="alert">
+                {leaveError}
+              </span>
+            )}
+          </aside>
+        )}
 
         <main id="main-content">{children}</main>
 

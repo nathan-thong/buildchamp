@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 import { formatCountdown, useRemainingSeconds } from '../components/LobbyCountdown';
+import { LobbyBuildCard } from '../components/LobbyBuildCard';
 import { joinLobby, findLobbySession, type LobbySession } from '../lib/lobby-client';
 import { useLobbyConnection } from '../lib/use-lobby-connection';
 import { useSound } from '../lib/sound';
@@ -103,7 +104,7 @@ function ConnectedSharedDisplay({
           <p className="display-header__status">
             {status === 'connected' ? 'Room display connected' : 'Room display reconnecting'}
           </p>
-          <h1>{projection.phase === 'waiting' ? 'Join the draft.' : 'The draft is on.'}</h1>
+          <h1>{displayHeadline(projection.phase)}</h1>
           <p>Scan the code to join as a player or spectator.</p>
         </div>
         <div className="display-code-block">
@@ -132,6 +133,8 @@ function ConnectedSharedDisplay({
           <p>
             {projection.settings.mode === 'same' ? 'Same Champs' : 'Random Champs'} ·{' '}
             {timerLabel(projection.settings.speed)}
+            {' · '}
+            {projection.settings.revealOrder === 'staged' ? 'staged reveal' : 'All at Once reveal'}
           </p>
           <DisplayProgress projection={projection} lockedPlayers={0} />
         </section>
@@ -178,8 +181,84 @@ function ConnectedSharedDisplay({
       {projection.phase === 'draft-complete' && (
         <section aria-labelledby="display-complete-title" className="display-waiting">
           <h2 id="display-complete-title">All six rounds are complete.</h2>
-          <p>Builds remain private until the reveal step.</p>
+          <p>The reveal is being prepared.</p>
           <DisplayProgress projection={projection} lockedPlayers={projection.playerCount} />
+        </section>
+      )}
+
+      {projection.phase === 'revealing' && (
+        <section aria-labelledby="display-reveal-title" className="display-phase">
+          <div className="display-phase__heading">
+            <div>
+              <p className="screen-label">The reveal</p>
+              <h2 id="display-reveal-title">
+                {projection.revealedCount} of {projection.candidateCount} builds revealed
+              </h2>
+              <p>
+                {projection.settings.revealOrder === 'staged'
+                  ? 'The host controls the pace. Each build appears in turn.'
+                  : 'All completed builds are now on display.'}
+              </p>
+            </div>
+            <DisplayTimer seconds={seconds} label="Next reveal" />
+          </div>
+          <div className="lobby-build-grid lobby-build-grid--display">
+            {projection.builds.map((build) => (
+              <LobbyBuildCard build={build} key={build.participantId} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {projection.phase === 'voting' && (
+        <section aria-labelledby="display-voting-title" className="display-phase">
+          <div className="display-phase__heading">
+            <div>
+              <p className="screen-label">Secret ballot</p>
+              <h2 id="display-voting-title">Which build do you prefer?</h2>
+              <p>
+                {projection.votesCastCount} ballots received · choices stay hidden until results
+              </p>
+            </div>
+            <DisplayTimer seconds={seconds} label="Voting closes" />
+          </div>
+          <div className="lobby-build-grid lobby-build-grid--display">
+            {projection.builds.map((build) => (
+              <LobbyBuildCard build={build} key={build.participantId} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {projection.phase === 'results' && (
+        <section aria-labelledby="display-results-title" className="display-phase display-results">
+          <div className="display-phase__heading">
+            <div>
+              <p className="screen-label">Room results</p>
+              <h2 id="display-results-title">
+                {projection.winnerIds?.length === 0
+                  ? 'No ballots were cast'
+                  : projection.winnerIds?.length === 1
+                    ? 'The room’s favourite build'
+                    : 'A shared victory'}
+              </h2>
+              <p>Every vote total is shown; tied favourites share the win.</p>
+            </div>
+          </div>
+          <div className="lobby-build-grid lobby-build-grid--display">
+            {projection.builds.map((build) => (
+              <LobbyBuildCard
+                build={build}
+                isWinner={projection.winnerIds?.includes(build.participantId) ?? false}
+                key={build.participantId}
+                voteCount={
+                  projection.voteTotals?.find(
+                    (entry) => entry.participantId === build.participantId,
+                  )?.votes ?? 0
+                }
+              />
+            ))}
+          </div>
         </section>
       )}
 
@@ -190,6 +269,23 @@ function ConnectedSharedDisplay({
       )}
     </div>
   );
+}
+
+function displayHeadline(phase: LobbyProjection['phase']): string {
+  switch (phase) {
+    case 'waiting':
+      return 'Join the draft.';
+    case 'drafting':
+      return 'The draft is on.';
+    case 'draft-complete':
+      return 'Draft complete.';
+    case 'revealing':
+      return 'The reveal is on.';
+    case 'voting':
+      return 'Voting is open.';
+    case 'results':
+      return 'The results are in.';
+  }
 }
 
 function ChampionDisplay({
@@ -227,7 +323,8 @@ function DisplayProgress({
   readonly lockedPlayers: number;
 }) {
   const players = projection.participants.filter(
-    (participant) => participant.role === 'host' || participant.role === 'player',
+    (participant) =>
+      !participant.hasLeft && (participant.role === 'host' || participant.role === 'player'),
   );
   return (
     <div className="display-progress">
@@ -255,6 +352,25 @@ function DisplayProgress({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function DisplayTimer({
+  seconds,
+  label,
+}: {
+  readonly seconds: number | null;
+  readonly label: string;
+}) {
+  return (
+    <div
+      className={`lobby-timer lobby-timer--display ${seconds !== null && seconds <= 5 ? 'lobby-timer--urgent' : ''}`}
+    >
+      <span>{label}</span>
+      <strong aria-label={`${label}: ${formatCountdown(seconds)}`} aria-live="off">
+        {formatCountdown(seconds)}
+      </strong>
     </div>
   );
 }

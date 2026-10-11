@@ -2,16 +2,22 @@ import { BUNDLED_CHAMPION_SNAPSHOT } from '../src/data/runtime-snapshot.ts';
 import { generateRoomCode } from './lobby/state.ts';
 import {
   AddParticipantResultSchema,
+  BrowserIdentityRecoverResponseSchema,
   CreateResultSchema,
   JoinResponseSchema,
   LOBBY_PROTOCOL_VERSION,
+  PublicLeaveRoomRequestSchema,
   PublicCreateRoomRequestSchema,
+  PublicClaimRoomRequestSchema,
   PublicErrorSchema,
   PublicJoinRequestSchema,
+  PublicRecoverRoomRequestSchema,
   PublicRoomInfoSchema,
+  RecoverIdentityResultSchema,
 } from './lobby/schemas.ts';
 
 export { BuildChampLobby } from './lobby/durable-object.ts';
+export { BuildChampBrowserIdentity } from './identity-object.ts';
 
 export type Env = WorkerEnv;
 
@@ -19,6 +25,7 @@ const MAX_API_BODY_BYTES = 4 * 1024;
 const REQUEST_RATE_LIMITS = {
   create: { windowMs: 60_000, maximum: 5 },
   join: { windowMs: 10_000, maximum: 30 },
+  recover: { windowMs: 10_000, maximum: 20 },
 } as const;
 const requestWindows = new Map<string, number[]>();
 
@@ -86,6 +93,17 @@ function addResponseHeaders(response: Response, pathname: string): Response {
 
 async function handleRoomApi(request: Request, env: Env): Promise<Response> {
   const { pathname } = new URL(request.url);
+  if (pathname === '/api/rooms/recover') {
+    if (request.method !== 'POST')
+      return apiError(405, 'method_not_allowed', 'Use POST to recover an active room.');
+    if (!isSameOrigin(request))
+      return apiError(403, 'origin_rejected', 'This request origin is not allowed.');
+    if (isRateLimited(request, 'recover')) return rateLimitResponse();
+    const body = await readApiJson(request, PublicRecoverRoomRequestSchema);
+    if (!body) return apiError(400, 'invalid_request', 'The recovery request was invalid.');
+    return recoverPublicParticipant(body.browserIdentityToken, env);
+  }
+
   if (pathname === '/api/rooms') {
     if (request.method !== 'POST')
       return apiError(405, 'method_not_allowed', 'Use POST to create a room.');
@@ -94,10 +112,13 @@ async function handleRoomApi(request: Request, env: Env): Promise<Response> {
     if (isRateLimited(request, 'create')) return rateLimitResponse();
     const body = await readApiJson(request, PublicCreateRoomRequestSchema);
     if (!body) return apiError(400, 'invalid_request', 'The request body was invalid.');
-    return createPublicRoom(body.nickname, env);
+    const identityKeyHash = await hashIdentityToken(body.browserIdentityToken);
+    return createPublicRoom(body.nickname, identityKeyHash, env);
   }
 
-  const match = pathname.match(/^\/api\/rooms\/([A-HJ-NP-Z2-9]{6})(?:\/(join|socket))?$/u);
+  const match = pathname.match(
+    /^\/api\/rooms\/([A-HJ-NP-Z2-9]{6})(?:\/(join|socket|leave|claim))?$/u,
+  );
   if (!match) return apiError(404, 'not_found', 'Room route not found.');
   const roomCode = match[1];
   const action = match[2];
@@ -123,6 +144,14 @@ async function handleRoomApi(request: Request, env: Env): Promise<Response> {
     const reconnectToken = makeReconnectToken();
     const reconnectTokenHash = await hashReconnectToken(reconnectToken);
     const requestedRole = body.role ?? 'player';
+    const identityKeyHash =
+      requestedRole === 'display'
+        ? null
+        : await hashIdentityToken(body.browserIdentityToken as string);
+    if (identityKeyHash) {
+      const reserved = await reserveBrowserIdentity(identityKeyHash, roomCode, participantId, env);
+      if (!reserved.ok) return reserved.response;
+    }
     const response = await stub.fetch(
       internalJsonRequest('/internal/join', {
         protocolVersion: LOBBY_PROTOCOL_VERSION,
@@ -130,14 +159,37 @@ async function handleRoomApi(request: Request, env: Env): Promise<Response> {
         ...(body.nickname !== undefined ? { nickname: body.nickname } : {}),
         requestedRole,
         reconnectTokenHash,
+        identityKeyHash,
         now: Date.now(),
       }),
     );
-    if (!response.ok)
+    if (!response.ok) {
+      if (identityKeyHash)
+        await releaseBrowserIdentity(identityKeyHash, roomCode, participantId, env);
       return apiFailureFromInternal(response, 'The room could not accept this participant.');
+    }
     const result = AddParticipantResultSchema.safeParse(await safeResponseJson(response));
-    if (!result.success)
+    if (!result.success) {
+      if (identityKeyHash) {
+        await leaveInternalRoom(roomCode, participantId, reconnectTokenHash, env);
+        await releaseBrowserIdentity(identityKeyHash, roomCode, participantId, env);
+      }
       return apiError(502, 'invalid_room_response', 'The room response was invalid.');
+    }
+    if (identityKeyHash) {
+      const committed = await commitBrowserIdentity(
+        identityKeyHash,
+        roomCode,
+        participantId,
+        result.data.expiresAt,
+        env,
+      );
+      if (!committed.ok) {
+        await leaveInternalRoom(roomCode, participantId, reconnectTokenHash, env);
+        await releaseBrowserIdentity(identityKeyHash, roomCode, participantId, env);
+        return identityErrorResponse(committed.response);
+      }
+    }
     const joined = JoinResponseSchema.safeParse({
       protocolVersion: LOBBY_PROTOCOL_VERSION,
       participantId: result.data.participantId,
@@ -153,6 +205,74 @@ async function handleRoomApi(request: Request, env: Env): Promise<Response> {
       : apiError(502, 'invalid_room_response', 'The room response was invalid.');
   }
 
+  if (action === 'leave' && request.method === 'POST') {
+    if (!isSameOrigin(request))
+      return apiError(403, 'origin_rejected', 'This request origin is not allowed.');
+    const body = await readApiJson(request, PublicLeaveRoomRequestSchema);
+    if (!body) return apiError(400, 'invalid_request', 'The leave request was invalid.');
+    const identityKeyHash = await hashIdentityToken(body.browserIdentityToken);
+    const response = await stub.fetch(
+      internalJsonRequest('/internal/leave', {
+        participantId: body.participantId,
+        reconnectTokenHash: await hashReconnectToken(body.reconnectToken),
+        now: Date.now(),
+      }),
+    );
+    if (response.status === 404) {
+      await releaseBrowserIdentity(identityKeyHash, roomCode, body.participantId, env);
+      return apiJson({ left: true });
+    }
+    if (!response.ok)
+      return apiFailureFromInternal(response, 'This room session could not be left.');
+    await releaseBrowserIdentity(identityKeyHash, roomCode, body.participantId, env);
+    return apiJson({ left: true });
+  }
+
+  if (action === 'claim' && request.method === 'POST') {
+    if (!isSameOrigin(request))
+      return apiError(403, 'origin_rejected', 'This request origin is not allowed.');
+    const body = await readApiJson(request, PublicClaimRoomRequestSchema);
+    if (!body) return apiError(400, 'invalid_request', 'The saved room session was invalid.');
+    const identityKeyHash = await hashIdentityToken(body.browserIdentityToken);
+    const reserved = await reserveBrowserIdentity(
+      identityKeyHash,
+      roomCode,
+      body.participantId,
+      env,
+    );
+    if (!reserved.ok) return identityErrorResponse(reserved.response);
+    const attached = await stub.fetch(
+      internalJsonRequest('/internal/claim-identity', {
+        participantId: body.participantId,
+        reconnectTokenHash: await hashReconnectToken(body.reconnectToken),
+        identityKeyHash,
+        now: Date.now(),
+      }),
+    );
+    if (!attached.ok) {
+      if (reserved.status === 'pending') {
+        await releaseBrowserIdentity(identityKeyHash, roomCode, body.participantId, env);
+      }
+      return apiFailureFromInternal(attached, 'This saved room session could not be restored.');
+    }
+    const result = (await safeResponseJson(attached)) as { expiresAt?: unknown };
+    if (typeof result?.expiresAt !== 'number') {
+      return apiError(
+        502,
+        'invalid_room_response',
+        'The room could not confirm its active session.',
+      );
+    }
+    const committed = await commitBrowserIdentity(
+      identityKeyHash,
+      roomCode,
+      body.participantId,
+      result.expiresAt,
+      env,
+    );
+    return committed.ok ? apiJson({ claimed: true }) : identityErrorResponse(committed.response);
+  }
+
   if (action === 'socket' && request.method === 'GET') {
     if (!isSameOrigin(request))
       return apiError(403, 'origin_rejected', 'This request origin is not allowed.');
@@ -166,26 +286,52 @@ async function handleRoomApi(request: Request, env: Env): Promise<Response> {
   return apiError(405, 'method_not_allowed', 'This room route does not support that method.');
 }
 
-async function createPublicRoom(nickname: string, env: Env): Promise<Response> {
+async function createPublicRoom(
+  nickname: string,
+  identityKeyHash: string,
+  env: Env,
+): Promise<Response> {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const roomCode = generateRoomCode(secureRandom);
     const participantId = crypto.randomUUID();
     const reconnectToken = makeReconnectToken();
     const reconnectTokenHash = await hashReconnectToken(reconnectToken);
+    const reserved = await reserveBrowserIdentity(identityKeyHash, roomCode, participantId, env);
+    if (!reserved.ok) return reserved.response;
     const response = await env.LOBBIES.getByName(roomCode).fetch(
       internalJsonRequest('/internal/create', {
         protocolVersion: LOBBY_PROTOCOL_VERSION,
         roomCode,
         snapshotVersion: BUNDLED_CHAMPION_SNAPSHOT.dataDragonVersion,
         now: Date.now(),
-        host: { participantId, nickname, reconnectTokenHash },
+        host: { participantId, nickname, reconnectTokenHash, identityKeyHash },
       }),
     );
-    if (response.status === 409) continue;
-    if (!response.ok) return apiFailureFromInternal(response, 'The room could not be created.');
+    if (response.status === 409) {
+      await releaseBrowserIdentity(identityKeyHash, roomCode, participantId, env);
+      continue;
+    }
+    if (!response.ok) {
+      await releaseBrowserIdentity(identityKeyHash, roomCode, participantId, env);
+      return apiFailureFromInternal(response, 'The room could not be created.');
+    }
     const created = CreateResultSchema.safeParse(await safeResponseJson(response));
-    if (!created.success)
+    if (!created.success) {
+      await releaseBrowserIdentity(identityKeyHash, roomCode, participantId, env);
       return apiError(502, 'invalid_room_response', 'The room response was invalid.');
+    }
+    const committed = await commitBrowserIdentity(
+      identityKeyHash,
+      roomCode,
+      participantId,
+      created.data.expiresAt,
+      env,
+    );
+    if (!committed.ok) {
+      await leaveInternalRoom(roomCode, participantId, reconnectTokenHash, env);
+      await releaseBrowserIdentity(identityKeyHash, roomCode, participantId, env);
+      return identityErrorResponse(committed.response);
+    }
     const result = JoinResponseSchema.safeParse({
       protocolVersion: LOBBY_PROTOCOL_VERSION,
       participantId: created.data.participantId,
@@ -201,6 +347,171 @@ async function createPublicRoom(nickname: string, env: Env): Promise<Response> {
       : apiError(502, 'invalid_room_response', 'The room response was invalid.');
   }
   return apiError(503, 'room_code_unavailable', 'A room could not be created. Please try again.');
+}
+
+async function recoverPublicParticipant(browserIdentityToken: string, env: Env): Promise<Response> {
+  const identityKeyHash = await hashIdentityToken(browserIdentityToken);
+  const identityResponse = await env.IDENTITIES.getByName(identityKeyHash).fetch(
+    identityJsonRequest('/internal/recover', {
+      identityKeyHash,
+      now: Date.now(),
+    }),
+  );
+  if (!identityResponse.ok) return identityErrorResponse(identityResponse);
+  const claim = BrowserIdentityRecoverResponseSchema.safeParse(
+    await safeResponseJson(identityResponse),
+  );
+  if (!claim.success) {
+    return apiError(503, 'identity_unavailable', 'Your active room could not be verified.');
+  }
+
+  const reconnectToken = await deriveRecoveryReconnectToken(
+    browserIdentityToken,
+    claim.data.roomCode,
+    claim.data.participantId,
+  );
+  const response = await env.LOBBIES.getByName(claim.data.roomCode).fetch(
+    internalJsonRequest('/internal/recover-identity', {
+      participantId: claim.data.participantId,
+      identityKeyHash,
+      reconnectTokenHash: await hashReconnectToken(reconnectToken),
+      now: Date.now(),
+    }),
+  );
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 404) {
+      await releaseBrowserIdentity(
+        identityKeyHash,
+        claim.data.roomCode,
+        claim.data.participantId,
+        env,
+      );
+    }
+    return apiFailureFromInternal(response, 'This active room could not be recovered.');
+  }
+  const recovered = RecoverIdentityResultSchema.safeParse(await safeResponseJson(response));
+  if (!recovered.success) {
+    return apiError(502, 'invalid_room_response', 'The recovered room session was invalid.');
+  }
+  const committed = await commitBrowserIdentity(
+    identityKeyHash,
+    recovered.data.roomCode,
+    recovered.data.participantId,
+    recovered.data.expiresAt,
+    env,
+  );
+  if (!committed.ok) return identityErrorResponse(committed.response);
+  return apiJson(
+    JoinResponseSchema.parse({
+      protocolVersion: LOBBY_PROTOCOL_VERSION,
+      participantId: recovered.data.participantId,
+      role: recovered.data.role,
+      nickname: recovered.data.nickname,
+      roomCode: recovered.data.roomCode,
+      revision: recovered.data.revision,
+      reconnectToken,
+      socketPath: `/api/rooms/${recovered.data.roomCode}/socket`,
+    }),
+  );
+}
+
+async function reserveBrowserIdentity(
+  identityKeyHash: string,
+  roomCode: string,
+  participantId: string,
+  env: Env,
+): Promise<{ ok: true; status: 'pending' | 'active' } | { ok: false; response: Response }> {
+  const response = await env.IDENTITIES.getByName(identityKeyHash).fetch(
+    identityJsonRequest('/internal/reserve', {
+      identityKeyHash,
+      roomCode,
+      participantId,
+      now: Date.now(),
+    }),
+  );
+  if (!response.ok) return { ok: false, response };
+  const result = (await safeResponseJson(response)) as { status?: unknown } | undefined;
+  return result?.status === 'pending' || result?.status === 'active'
+    ? { ok: true, status: result.status }
+    : {
+        ok: false,
+        response: apiError(
+          503,
+          'identity_unavailable',
+          'Your browser identity could not be reserved.',
+        ),
+      };
+}
+
+async function commitBrowserIdentity(
+  identityKeyHash: string,
+  roomCode: string,
+  participantId: string,
+  expiresAt: number,
+  env: Env,
+): Promise<{ ok: true } | { ok: false; response: Response }> {
+  const response = await env.IDENTITIES.getByName(identityKeyHash).fetch(
+    identityJsonRequest('/internal/commit', {
+      roomCode,
+      participantId,
+      expiresAt,
+      now: Date.now(),
+    }),
+  );
+  return response.ok ? { ok: true } : { ok: false, response };
+}
+
+async function releaseBrowserIdentity(
+  identityKeyHash: string,
+  roomCode: string,
+  participantId: string,
+  env: Env,
+): Promise<void> {
+  await env.IDENTITIES.getByName(identityKeyHash).fetch(
+    identityJsonRequest('/internal/release', { roomCode, participantId }),
+  );
+}
+
+async function leaveInternalRoom(
+  roomCode: string,
+  participantId: string,
+  reconnectTokenHash: string,
+  env: Env,
+): Promise<void> {
+  await env.LOBBIES.getByName(roomCode).fetch(
+    identityJsonRequest('/internal/leave', {
+      participantId,
+      reconnectTokenHash,
+      now: Date.now(),
+    }),
+  );
+}
+
+function identityJsonRequest(path: string, body: unknown): Request {
+  return new Request(`https://identity.internal${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+async function identityErrorResponse(response: Response): Promise<Response> {
+  let code = 'identity_unavailable';
+  try {
+    const payload = (await response.json()) as { error?: unknown };
+    if (typeof payload.error === 'string') code = payload.error;
+  } catch {
+    // Keep the client message generic when the internal result is malformed.
+  }
+  const message =
+    code === 'active_lobby'
+      ? 'You already have an active room in this browser. Leave that room before joining another.'
+      : code === 'active_room_not_found'
+        ? 'No active room could be recovered. Try joining or creating again.'
+        : code === 'identity_claim_pending'
+          ? 'A room action is still being completed. Wait a moment, then try again.'
+          : 'Your active room could not be verified. Try again shortly.';
+  return apiError(response.status, code, message);
 }
 
 function internalJsonRequest(path: string, body: unknown): Request {
@@ -317,6 +628,22 @@ function makeReconnectToken(): string {
 async function hashReconnectToken(token: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function hashIdentityToken(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function deriveRecoveryReconnectToken(
+  browserIdentityToken: string,
+  roomCode: string,
+  participantId: string,
+): Promise<string> {
+  const material = `buildchamp:reconnect-recovery:v1:${roomCode}:${participantId}:${browserIdentityToken}`;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(material));
+  const binary = Array.from(new Uint8Array(digest), (byte) => String.fromCharCode(byte)).join('');
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
 }
 
 function secureRandom(): number {

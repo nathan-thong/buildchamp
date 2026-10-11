@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { AppLink } from '../components/AppLink';
+import { LobbyBuildCard } from '../components/LobbyBuildCard';
 import { formatCountdown, useRemainingSeconds } from '../components/LobbyCountdown';
 import { DRAFT_SLOT_ORDER } from '../domain/draft-engine';
-import { findLobbySession, type LobbySession } from '../lib/lobby-client';
-import { useLobbyConnection } from '../lib/use-lobby-connection';
+import { findLobbySession, type LobbyCommandRequest, type LobbySession } from '../lib/lobby-client';
+import { useLobbySession } from '../lib/lobby-session-context';
+import type { LobbyConnectionStatus } from '../lib/use-lobby-connection';
 import { useSound } from '../lib/sound';
 import { LobbyEntryPage } from './LobbyEntryPage';
 import type { LobbyProjection, OfferProjection } from '../../worker/lobby/schemas';
@@ -19,9 +21,33 @@ const SLOT_LABELS = {
 } as const;
 
 export function LobbyRoomPage({ roomCode }: { readonly roomCode: string }) {
-  const [session, setSession] = useState<LobbySession | null>(() => findLobbySession(roomCode));
+  const { session: activeSession, activateSession } = useLobbySession();
+  const savedSession = findLobbySession(roomCode);
+  const session = activeSession?.roomCode === roomCode ? activeSession : savedSession;
+
+  useEffect(() => {
+    if (
+      session &&
+      session.role !== 'display' &&
+      activeSession?.participantId !== session.participantId
+    ) {
+      activateSession(session);
+    }
+  }, [activeSession?.participantId, activateSession, session]);
+
+  if (activeSession && activeSession.roomCode !== roomCode) {
+    return (
+      <div className="page-container lobby-entry-page">
+        <h1>You’re already in a room.</h1>
+        <p>Leave room {activeSession.roomCode} before joining this one.</p>
+        <AppLink className="button button--primary" href={`/room/${activeSession.roomCode}`}>
+          Return to your room
+        </AppLink>
+      </div>
+    );
+  }
   if (!session) {
-    return <LobbyEntryPage initialRoomCode={roomCode} onJoined={setSession} />;
+    return <LobbyEntryPage initialRoomCode={roomCode} />;
   }
   if (session.role === 'display') {
     return (
@@ -38,12 +64,14 @@ export function LobbyRoomPage({ roomCode }: { readonly roomCode: string }) {
 }
 
 function ConnectedLobbyRoom({ session }: { readonly session: LobbySession }) {
-  const { projection, status, error, sendCommand } = useLobbyConnection(session);
+  const { projection, status, error, sendCommand, leaveActiveSession } = useLobbySession();
   const sound = useSound();
   const seconds = useRemainingSeconds(projection?.deadlineAt ?? null);
   const [selectedSlot, setSelectedSlot] = useState<keyof typeof SLOT_LABELS | null>(null);
   const [lockSending, setLockSending] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const previousRevealCountRef = useRef<number | null>(null);
   const previousRoundRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -60,6 +88,20 @@ function ConnectedLobbyRoom({ session }: { readonly session: LobbySession }) {
   useEffect(() => {
     if (error) setLockSending(false);
   }, [error]);
+
+  useEffect(() => {
+    if (projection?.phase !== 'revealing') {
+      previousRevealCountRef.current = null;
+      return;
+    }
+    if (
+      previousRevealCountRef.current !== null &&
+      projection.revealedCount > previousRevealCountRef.current
+    ) {
+      sound.play('reveal');
+    }
+    previousRevealCountRef.current = projection.revealedCount;
+  }, [projection?.phase, projection?.revealedCount, sound]);
 
   if (!projection) {
     return (
@@ -119,11 +161,32 @@ function ConnectedLobbyRoom({ session }: { readonly session: LobbySession }) {
     }
   }
 
+  async function leaveRoom() {
+    setLeaveError(null);
+    try {
+      await leaveActiveSession();
+      window.history.pushState({}, '', '/lobby');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    } catch (cause) {
+      setLeaveError(cause instanceof Error ? cause.message : 'The room could not be left.');
+    }
+  }
+
   return (
     <div className="page-container lobby-room-page">
       <header className="lobby-room-header">
         <div>
-          <h1>{projection.phase === 'waiting' ? 'Room waiting' : 'Private draft'}</h1>
+          <h1>
+            {projection.phase === 'waiting'
+              ? 'Room waiting'
+              : projection.phase === 'revealing'
+                ? 'Build reveal'
+                : projection.phase === 'voting'
+                  ? 'Secret ballot'
+                  : projection.phase === 'results'
+                    ? 'Room results'
+                    : 'Private draft'}
+          </h1>
           <p className="lobby-room-header__meta">
             {session.nickname} · {roleName(projection.role)} · {connectionName(status)}
           </p>
@@ -137,6 +200,9 @@ function ConnectedLobbyRoom({ session }: { readonly session: LobbySession }) {
           <AppLink className="text-action" href={`/display/${projection.roomCode}`}>
             Open shared display
           </AppLink>
+          <button className="text-action" onClick={() => void leaveRoom()} type="button">
+            Leave room
+          </button>
         </div>
       </header>
 
@@ -188,11 +254,129 @@ function ConnectedLobbyRoom({ session }: { readonly session: LobbySession }) {
       {projection.phase === 'draft-complete' && (
         <section aria-labelledby="draft-complete-title" className="draft-complete-panel">
           <h2 id="draft-complete-title">All six choices are locked.</h2>
-          <p>
-            The builds remain hidden until a later reveal step. This room is ready for that next
-            phase.
-          </p>
+          <p>The server is preparing the reveal.</p>
           <ProgressPanel projection={projection} />
+        </section>
+      )}
+
+      {projection.phase === 'revealing' && (
+        <section aria-labelledby="room-reveal-title" className="room-phase-panel">
+          <div className="room-phase-panel__heading">
+            <div>
+              <p className="screen-label">The reveal</p>
+              <h2 id="room-reveal-title">
+                {projection.revealedCount} of {projection.candidateCount} builds revealed
+              </h2>
+              <p>
+                {projection.settings.revealOrder === 'staged'
+                  ? 'Builds appear one at a time. The host can move the room forward.'
+                  : 'Every completed build is on display.'}
+              </p>
+            </div>
+            <PhaseTimer seconds={seconds} label="Next reveal" />
+          </div>
+          <div className="lobby-build-grid">
+            {projection.builds.map((build) => (
+              <LobbyBuildCard build={build} key={build.participantId} />
+            ))}
+          </div>
+          {projection.role === 'host' && (
+            <button
+              className="button button--primary"
+              disabled={status !== 'connected'}
+              onClick={() => sendCommand({ type: 'host.reveal.advance', payload: {} })}
+              type="button"
+            >
+              {projection.revealedCount < projection.candidateCount
+                ? 'Reveal next build'
+                : 'Begin voting'}
+            </button>
+          )}
+        </section>
+      )}
+
+      {projection.phase === 'voting' && (
+        <section aria-labelledby="room-voting-title" className="room-phase-panel">
+          <div className="room-phase-panel__heading">
+            <div>
+              <p className="screen-label">Secret ballot</p>
+              <h2 id="room-voting-title">Which build do you prefer?</h2>
+              <p>
+                Your choice stays hidden until results. {projection.votesCastCount} of the room’s
+                ballots have been cast.
+              </p>
+            </div>
+            <PhaseTimer seconds={seconds} label="Voting closes" />
+          </div>
+          {projection.selfHasVoted && (
+            <p className="room-vote-note" role="status">
+              Your ballot is locked. Its choice remains secret until results.
+            </p>
+          )}
+          <div className="lobby-build-grid">
+            {projection.builds.map((build) => {
+              const canVote =
+                projection.votableParticipantIds?.includes(build.participantId) ?? false;
+              return (
+                <LobbyBuildCard
+                  build={build}
+                  canVote={canVote}
+                  disabled={status !== 'connected'}
+                  key={build.participantId}
+                  onVote={() => {
+                    const sent = sendCommand({
+                      type: 'player.vote',
+                      payload: { participantId: build.participantId },
+                    });
+                    if (sent) sound.play('lock');
+                  }}
+                  voted={projection.selfHasVoted}
+                />
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {projection.phase === 'results' && (
+        <section aria-labelledby="room-results-title" className="room-phase-panel room-results">
+          <div className="room-phase-panel__heading">
+            <div>
+              <p className="screen-label">Room results</p>
+              <h2 id="room-results-title">
+                {projection.winnerIds?.length === 0
+                  ? 'No ballots were cast'
+                  : projection.winnerIds?.length === 1
+                    ? 'The room’s favourite build'
+                    : 'A shared victory'}
+              </h2>
+              <p>Votes reflect the room’s choices, not an automated power score.</p>
+            </div>
+          </div>
+          <div className="lobby-build-grid">
+            {projection.builds.map((build) => (
+              <LobbyBuildCard
+                build={build}
+                isWinner={projection.winnerIds?.includes(build.participantId) ?? false}
+                key={build.participantId}
+                voteCount={
+                  projection.voteTotals?.find(
+                    (entry) => entry.participantId === build.participantId,
+                  )?.votes ?? 0
+                }
+              />
+            ))}
+          </div>
+          {projection.role === 'host' && (
+            <button
+              className="button button--primary"
+              disabled={status !== 'connected'}
+              onClick={() => sendCommand({ type: 'host.rematch', payload: {} })}
+              type="button"
+            >
+              Draft a fresh rematch
+            </button>
+          )}
         </section>
       )}
 
@@ -201,13 +385,26 @@ function ConnectedLobbyRoom({ session }: { readonly session: LobbySession }) {
           {error}
         </p>
       )}
+      {leaveError && (
+        <p className="lobby-error" role="alert">
+          {leaveError}
+        </p>
+      )}
       {copyStatus && (
         <p className="visually-hidden" role="status">
           {copyStatus}
         </p>
       )}
       <p className="lobby-room-footer">
-        Locks are permanent. Your choices stay private until the reveal.
+        {projection.phase === 'drafting'
+          ? 'Locks are permanent. Choices stay private until the reveal.'
+          : projection.phase === 'revealing'
+            ? 'Completed builds are public as they appear. Ballots stay private until results.'
+            : projection.phase === 'voting'
+              ? 'Builds are public. Ballots stay private until results.'
+              : projection.phase === 'results'
+                ? 'Builds and vote totals stay in the room until the next draft.'
+                : 'Choose when you are ready; a draft starts after two players are ready.'}
       </p>
     </div>
   );
@@ -219,13 +416,14 @@ function WaitingRoom({
   status,
 }: {
   readonly projection: LobbyProjection;
-  readonly sendCommand: ReturnType<typeof useLobbyConnection>['sendCommand'];
-  readonly status: 'connecting' | 'connected' | 'reconnecting';
+  readonly sendCommand: (request: LobbyCommandRequest) => boolean;
+  readonly status: LobbyConnectionStatus;
 }) {
   const isHost = projection.role === 'host';
   const me = projection.participants.find(({ id }) => id === projection.selfParticipantId);
   const playerParticipants = projection.participants.filter(
-    (participant) => participant.role === 'host' || participant.role === 'player',
+    (participant) =>
+      !participant.hasLeft && (participant.role === 'host' || participant.role === 'player'),
   );
   const readyCount = playerParticipants.filter(({ ready }) => ready).length;
 
@@ -273,6 +471,24 @@ function WaitingRoom({
               <option value="quick">Quick · 15 seconds</option>
               <option value="standard">Standard · 30 seconds</option>
               <option value="relaxed">Relaxed · 45 seconds</option>
+            </select>
+          </label>
+          <label>
+            Reveal style
+            <select
+              onChange={(event) =>
+                sendCommand({
+                  type: 'host.settings',
+                  payload: {
+                    ...projection.settings,
+                    revealOrder: event.target.value as 'staged' | 'all-at-once',
+                  },
+                })
+              }
+              value={projection.settings.revealOrder}
+            >
+              <option value="staged">One build at a time</option>
+              <option value="all-at-once">All builds at once</option>
             </select>
           </label>
         </div>
@@ -497,7 +713,7 @@ function roleName(role: LobbyProjection['role'] | 'player') {
   }
 }
 
-function connectionName(status: 'connecting' | 'connected' | 'reconnecting') {
+function connectionName(status: LobbyConnectionStatus) {
   switch (status) {
     case 'connected':
       return 'Connected';
@@ -505,5 +721,24 @@ function connectionName(status: 'connecting' | 'connected' | 'reconnecting') {
       return 'Connecting';
     case 'reconnecting':
       return 'Reconnecting';
+    case 'blocked':
+      return 'Reconnect needed';
   }
+}
+
+function PhaseTimer({
+  seconds,
+  label,
+}: {
+  readonly seconds: number | null;
+  readonly label: string;
+}) {
+  return (
+    <div className={`lobby-timer ${seconds !== null && seconds <= 5 ? 'lobby-timer--urgent' : ''}`}>
+      <span>{label}</span>
+      <strong aria-label={`${label}: ${formatCountdown(seconds)}`} aria-live="off">
+        {formatCountdown(seconds)}
+      </strong>
+    </div>
+  );
 }

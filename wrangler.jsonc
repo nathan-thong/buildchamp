@@ -16,12 +16,20 @@
         "name": "LOBBIES",
         "class_name": "BuildChampLobby",
       },
+      {
+        "name": "IDENTITIES",
+        "class_name": "BuildChampBrowserIdentity",
+      },
     ],
   },
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["BuildChampLobby"],
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["BuildChampBrowserIdentity"],
     },
   ],
   "observability": {
@@ -38,6 +46,10 @@
             "name": "LOBBIES",
             "class_name": "BuildChampLobby",
           },
+        {
+          "name": "IDENTITIES",
+          "class_name": "BuildChampBrowserIdentity",
+        },
         ],
       },
       "observability": {

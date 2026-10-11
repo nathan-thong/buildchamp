@@ -20,6 +20,7 @@ import {
   LOBBY_PROTOCOL_VERSION,
   LOBBY_STATE_VERSION,
   MAX_RECENT_COMMANDS,
+  REVEAL_STEP_MS,
   LobbyProjectionSchema,
   LobbyStateSchema,
   OfferProjectionSchema,
@@ -58,6 +59,12 @@ export type DraftMode = LobbySettings['mode'];
 
 export const LOBBY_SPEED_DURATIONS_MS: Readonly<Record<LobbySettings['speed'], number>> = {
   quick: 15_000,
+  standard: 30_000,
+  relaxed: 45_000,
+};
+
+export const LOBBY_VOTE_DURATIONS_MS: Readonly<Record<LobbySettings['speed'], number>> = {
+  quick: 20_000,
   standard: 30_000,
   relaxed: 45_000,
 };
@@ -157,6 +164,7 @@ export function createLobbyState(
     hostParticipantId: string;
     hostNickname: string;
     reconnectTokenHash: string;
+    identityKeyHash?: string | null;
     now: number;
   }>,
 ): LobbyState {
@@ -170,6 +178,8 @@ export function createLobbyState(
     connectedAt: null,
     joinedAt: input.now,
     reconnectTokenHash: input.reconnectTokenHash,
+    identityKeyHash: input.identityKeyHash ?? null,
+    hasLeft: false,
   });
 
   return LobbyStateSchema.parse({
@@ -189,6 +199,9 @@ export function createLobbyState(
     draftsByParticipantId: {},
     roundLocksByParticipantId: {},
     completedRunsByParticipantId: {},
+    revealOrderParticipantIds: [],
+    revealedCount: 0,
+    votesByIdentityHash: {},
     deadlineAt: null,
     recentCommands: [],
     createdAt: input.now,
@@ -206,6 +219,19 @@ export function addLobbyParticipant(
       'participant_exists',
       'This participant has already joined the room.',
     );
+  }
+
+  if (
+    input.identityKeyHash &&
+    input.requestedRole !== 'display' &&
+    state.participants.some(
+      (participant) =>
+        !participant.hasLeft &&
+        participant.role !== 'display' &&
+        participant.identityKeyHash === input.identityKeyHash,
+    )
+  ) {
+    throw new LobbyStateError('participant_exists', 'This browser already has a seat in the room.');
   }
 
   const requestedRole = input.requestedRole;
@@ -254,6 +280,8 @@ export function addLobbyParticipant(
     connectedAt: null,
     joinedAt: input.now,
     reconnectTokenHash: input.reconnectTokenHash,
+    identityKeyHash: requestedRole === 'display' ? null : input.identityKeyHash,
+    hasLeft: false,
   });
   const nextState = touchState(
     {
@@ -274,7 +302,7 @@ export function connectLobbyParticipant(
 ): LobbyState {
   const index = state.participants.findIndex((participant) => participant.id === participantId);
   const participant = state.participants[index];
-  if (!participant) {
+  if (!participant || participant.hasLeft) {
     throw new LobbyStateError('invalid_state', 'Participant is no longer in this room.');
   }
 
@@ -297,7 +325,12 @@ export function disconnectLobbyParticipant(
 ): LobbyState {
   const index = state.participants.findIndex((participant) => participant.id === participantId);
   const participant = state.participants[index];
-  if (!participant || !participant.isConnected || participant.connectionId !== connectionId) {
+  if (
+    !participant ||
+    participant.hasLeft ||
+    !participant.isConnected ||
+    participant.connectionId !== connectionId
+  ) {
     return state;
   }
 
@@ -307,12 +340,15 @@ export function disconnectLobbyParticipant(
     isConnected: false,
     connectionId: null,
     connectedAt: null,
+    ...(state.phase === 'waiting' ? { ready: false } : {}),
   };
 
   let hostParticipantId = state.hostParticipantId;
   if (participant.role === 'host') {
     const nextHost = participants
-      .filter((candidate) => candidate.role === 'player' && candidate.isConnected)
+      .filter(
+        (candidate) => !candidate.hasLeft && candidate.role === 'player' && candidate.isConnected,
+      )
       .sort(
         (left, right) =>
           (left.connectedAt ?? Number.MAX_SAFE_INTEGER) -
@@ -336,19 +372,42 @@ export function disconnectLobbyParticipant(
     }
   }
 
-  return touchState({ ...state, participants, hostParticipantId }, now);
+  const disconnectedState = touchState({ ...state, participants, hostParticipantId }, now);
+  return completeVoteIfConnectedVotersActed(disconnectedState, now);
 }
 
-/** Resolve an expired round once; repeated alarms observe a new deadline or a completed draft. */
-export function advanceExpiredDraftRound(
+/** Resolve the current server-timed phase once; retries observe its replacement deadline. */
+export function advanceExpiredLobbyPhase(
   state: LobbyState,
   context: LobbyCommandContext,
 ): LobbyState {
-  if (state.phase !== 'drafting' || state.deadlineAt === null || context.now < state.deadlineAt) {
+  if (state.deadlineAt === null || context.now < state.deadlineAt) {
     return state;
   }
+  if (state.phase === 'drafting') return resolveDraftRound(state, context);
+  if (state.phase === 'revealing') return advanceReveal(state, context.now);
+  if (state.phase === 'voting') return finishVoting(state, context.now);
+  return state;
+}
 
-  return resolveDraftRound(state, context);
+/** Backwards-compatible name for existing draft tests and local adapters. */
+export const advanceExpiredDraftRound = advanceExpiredLobbyPhase;
+
+export function leaveLobbyParticipant(
+  state: LobbyState,
+  participantId: string,
+  reconnectTokenHash: string,
+  now: number,
+): Readonly<{ state: LobbyState | null; removed: boolean }> {
+  const participant = state.participants.find((candidate) => candidate.id === participantId);
+  if (
+    !participant ||
+    participant.hasLeft ||
+    !constantTimeStringEqual(participant.reconnectTokenHash, reconnectTokenHash)
+  ) {
+    return { state, removed: false };
+  }
+  return { state: removeParticipant(state, participant, now), removed: true };
 }
 
 export function handleLobbyCommand(
@@ -358,7 +417,12 @@ export function handleLobbyCommand(
   context: LobbyCommandContext,
 ): LobbyCommandResult {
   const participant = state.participants.find((candidate) => candidate.id === actor.participantId);
-  if (!participant || !participant.isConnected || participant.connectionId !== actor.connectionId) {
+  if (
+    !participant ||
+    participant.hasLeft ||
+    !participant.isConnected ||
+    participant.connectionId !== actor.connectionId
+  ) {
     return commandFailure(
       state,
       'unauthorized',
@@ -382,9 +446,14 @@ export function handleLobbyCommand(
   }
 
   const isLockCommand = command.type === 'player.lock';
+  const isCurrentVotePhaseCommand =
+    command.type === 'player.vote' &&
+    state.phase === 'voting' &&
+    state.deadlineAt !== null &&
+    command.payload.phaseDeadlineAt === state.deadlineAt;
   if (
     command.roomRevision !== state.revision &&
-    (!isLockCommand || command.roomRevision > state.revision)
+    (!(isLockCommand || isCurrentVotePhaseCommand) || command.roomRevision > state.revision)
   ) {
     return commandFailure(
       state,
@@ -465,7 +534,7 @@ export function handleLobbyCommand(
     const target = state.participants.find(
       (candidate) => candidate.id === command.payload.participantId,
     );
-    if (!target || target.role === 'host') {
+    if (!target || target.role === 'host' || target.hasLeft) {
       return commandFailure(
         state,
         'participant_not_found',
@@ -473,24 +542,12 @@ export function handleLobbyCommand(
         command,
       );
     }
-    if (state.phase !== 'waiting' && isDraftingPlayer(target)) {
-      return commandFailure(
-        state,
-        'wrong_phase',
-        'Drafting players cannot be removed after the game starts.',
-        command,
-      );
+    const next = removeParticipant(state, target, context.now);
+    if (!next) {
+      return commandFailure(state, 'wrong_phase', 'The room cannot remove its last host.', command);
     }
-    const participants = state.participants.filter((candidate) => candidate.id !== target.id);
-    const draftsByParticipantId = { ...state.draftsByParticipantId };
-    delete draftsByParticipantId[target.id];
     return {
-      ...commandSuccess(
-        touchState({ ...state, participants, draftsByParticipantId }, context.now),
-        actor.participantId,
-        command,
-        true,
-      ),
+      ...commandSuccess(next, actor.participantId, command, true),
       removedParticipantId: target.id,
     };
   }
@@ -503,7 +560,7 @@ export function handleLobbyCommand(
       return commandFailure(state, 'wrong_phase', 'This room has already started.', command);
     }
     const readyPlayers = state.participants.filter(
-      (candidate) => isDraftingPlayer(candidate) && candidate.ready,
+      (candidate) => isDraftingPlayer(candidate) && candidate.ready && candidate.isConnected,
     );
     if (readyPlayers.length < 2) {
       return commandFailure(
@@ -623,6 +680,147 @@ export function handleLobbyCommand(
     return commandSuccess(nextState, actor.participantId, command, true);
   }
 
+  if (command.type === 'host.reveal.advance') {
+    if (participant.role !== 'host') {
+      return commandFailure(
+        state,
+        'unauthorized',
+        'Only the host can advance the reveal.',
+        command,
+      );
+    }
+    if (state.phase !== 'revealing') {
+      return commandFailure(state, 'wrong_phase', 'The reveal is not active.', command);
+    }
+    return commandSuccess(advanceReveal(state, context.now), actor.participantId, command, true);
+  }
+
+  if (command.type === 'player.vote') {
+    if (!isVoter(participant)) {
+      return commandFailure(state, 'unauthorized', 'This role cannot vote in the room.', command);
+    }
+    if (state.phase !== 'voting') {
+      return commandFailure(state, 'wrong_phase', 'Voting is not active.', command);
+    }
+    if (
+      state.deadlineAt === null ||
+      context.now >= state.deadlineAt ||
+      command.payload.phaseDeadlineAt !== state.deadlineAt
+    ) {
+      return commandFailure(
+        state,
+        'wrong_phase',
+        'This voting phase is no longer active.',
+        command,
+      );
+    }
+    const voterKey = identityForParticipant(participant);
+    if (voterKey in state.votesByIdentityHash) {
+      return commandFailure(
+        state,
+        'already_locked',
+        'Your ballot has already been counted.',
+        command,
+      );
+    }
+    const target = state.participants.find(
+      (candidate) => candidate.id === command.payload.participantId,
+    );
+    if (!target || !(target.id in state.completedRunsByParticipantId)) {
+      return commandFailure(
+        state,
+        'participant_not_found',
+        'That completed build is unavailable.',
+        command,
+      );
+    }
+    if (sameIdentity(participant, target)) {
+      return commandFailure(state, 'unauthorized', 'You cannot vote for your own build.', command);
+    }
+    const voted = touchState(
+      {
+        ...state,
+        votesByIdentityHash: { ...state.votesByIdentityHash, [voterKey]: target.id },
+      },
+      context.now,
+    );
+    return commandSuccess(
+      completeVoteIfConnectedVotersActed(voted, context.now),
+      actor.participantId,
+      command,
+      true,
+    );
+  }
+
+  if (command.type === 'host.rematch') {
+    if (participant.role !== 'host') {
+      return commandFailure(state, 'unauthorized', 'Only the host can start a rematch.', command);
+    }
+    if (state.phase !== 'results') {
+      return commandFailure(state, 'wrong_phase', 'A rematch is available after results.', command);
+    }
+    const activePlayers = state.participants.filter(isDraftingPlayer);
+    const participants = state.participants.filter((candidate) => !candidate.hasLeft);
+    if (activePlayers.length < 2) {
+      return commandSuccess(
+        touchState(
+          {
+            ...state,
+            phase: 'waiting',
+            participants: participants.map((candidate) => ({ ...candidate, ready: false })),
+            draftsByParticipantId: {},
+            roundLocksByParticipantId: {},
+            completedRunsByParticipantId: {},
+            revealOrderParticipantIds: [],
+            revealedCount: 0,
+            votesByIdentityHash: {},
+            deadlineAt: null,
+          },
+          context.now,
+        ),
+        actor.participantId,
+        command,
+        true,
+      );
+    }
+    try {
+      const playerIds = activePlayers.map(({ id }) => id);
+      const draftsByParticipantId = createInitialDrafts(
+        context.snapshot,
+        playerIds,
+        state.settings.mode,
+        context.random,
+      );
+      return commandSuccess(
+        touchState(
+          {
+            ...state,
+            phase: 'drafting',
+            participants,
+            draftsByParticipantId,
+            roundLocksByParticipantId: {},
+            completedRunsByParticipantId: {},
+            revealOrderParticipantIds: [],
+            revealedCount: 0,
+            votesByIdentityHash: {},
+            deadlineAt: Math.floor(context.now) + LOBBY_SPEED_DURATIONS_MS[state.settings.speed],
+          },
+          context.now,
+        ),
+        actor.participantId,
+        command,
+        true,
+      );
+    } catch {
+      return commandFailure(
+        state,
+        'offer_generation_failed',
+        'The current champion snapshot could not generate a legal rematch.',
+        command,
+      );
+    }
+  }
+
   return commandFailure(
     state,
     'unauthorized',
@@ -636,6 +834,13 @@ export function projectLobby(
   audience: Readonly<{ role: LobbyRole | 'observer'; participantId: string | null }>,
   snapshot: ChampionSnapshot,
 ): LobbyProjection {
+  const viewer = state.participants.find((candidate) => candidate.id === audience.participantId);
+  const visibleBuildIds =
+    state.phase === 'revealing'
+      ? state.revealOrderParticipantIds.slice(0, state.revealedCount)
+      : state.phase === 'voting' || state.phase === 'results'
+        ? state.revealOrderParticipantIds
+        : [];
   const projection: LobbyProjection = {
     protocolVersion: state.protocolVersion,
     snapshotVersion: state.snapshotVersion,
@@ -646,29 +851,66 @@ export function projectLobby(
     selfParticipantId: audience.participantId,
     hostParticipantId: state.hostParticipantId,
     settings: { ...state.settings },
-    participants: state.participants.map(({ id, nickname, role, ready, isConnected }) => ({
+    participants: state.participants.map(({ id, nickname, role, ready, isConnected, hasLeft }) => ({
       id,
       nickname,
       role,
       ready,
       isConnected,
+      hasLeft,
       lockedThisRound:
-        (state.phase === 'draft-complete' && isDraftingPlayer({ role })) ||
+        (state.phase === 'draft-complete' && isDraftingPlayer({ role, hasLeft })) ||
         id in state.roundLocksByParticipantId,
     })),
+    builds: visibleBuildIds.map((participantId) => {
+      const participant = state.participants.find((candidate) => candidate.id === participantId);
+      const run = state.completedRunsByParticipantId[participantId];
+      if (!participant || !run) {
+        throw new LobbyStateError(
+          'invalid_state',
+          'A revealed build is missing its owner or data.',
+        );
+      }
+      return projectCompletedBuild(participant, run, snapshot);
+    }),
     expiresAt: state.expiresAt,
     deadlineAt: state.deadlineAt,
     lockedCount: Object.keys(state.roundLocksByParticipantId).length,
     playerCount: state.participants.filter(isDraftingPlayer).length,
+    candidateCount: state.revealOrderParticipantIds.length,
+    revealedCount:
+      state.phase === 'revealing' || state.phase === 'voting' || state.phase === 'results'
+        ? state.revealedCount
+        : 0,
+    selfHasVoted: Boolean(viewer && identityForParticipant(viewer) in state.votesByIdentityHash),
+    votesCastCount: Object.keys(state.votesByIdentityHash).length,
+    ...(state.phase === 'voting' && viewer && isVoter(viewer)
+      ? {
+          votableParticipantIds: state.revealOrderParticipantIds.filter((candidateId) => {
+            const candidate = state.participants.find(({ id }) => id === candidateId);
+            return Boolean(candidate && !sameIdentity(viewer, candidate));
+          }),
+        }
+      : {}),
   };
 
-  if (state.phase === 'waiting' || state.phase === 'results') {
+  if (state.phase === 'results') {
+    const totals = countVotes(state);
+    const highest = Math.max(0, ...totals.map(({ votes }) => votes));
+    projection.voteTotals = totals;
+    projection.winnerIds =
+      highest === 0
+        ? []
+        : totals.filter(({ votes }) => votes === highest).map(({ participantId }) => participantId);
     return LobbyProjectionSchema.parse(projection);
   }
 
-  if (state.phase === 'draft-complete') {
-    projection.currentRound = 6;
-    projection.lockedCount = projection.playerCount;
+  if (
+    state.phase === 'waiting' ||
+    state.phase === 'draft-complete' ||
+    state.phase === 'revealing' ||
+    state.phase === 'voting'
+  ) {
     return LobbyProjectionSchema.parse(projection);
   }
 
@@ -784,13 +1026,16 @@ function resolveDraftRound(state: LobbyState, context: LobbyCommandContext): Lob
         return [participantId, serializeCompletion(run.completion)];
       }),
     ) as LobbyState['completedRunsByParticipantId'];
-    return touchState(
+    return beginReveal(
       {
         ...state,
         phase: 'draft-complete',
         draftsByParticipantId: {},
         roundLocksByParticipantId: {},
         completedRunsByParticipantId,
+        revealOrderParticipantIds: playerIds,
+        revealedCount: 0,
+        votesByIdentityHash: {},
         deadlineAt: null,
       },
       context.now,
@@ -873,13 +1118,15 @@ export function touchState(state: LobbyState, now: number): LobbyState {
 }
 
 export function isDraftingPlayer(
-  participant: Pick<LobbyParticipant, 'role'>,
+  participant: Pick<LobbyParticipant, 'role' | 'hasLeft'>,
 ): participant is LobbyParticipant {
-  return participant.role === 'host' || participant.role === 'player';
+  return !participant.hasLeft && (participant.role === 'host' || participant.role === 'player');
 }
 
 export function spectatorCount(state: LobbyState): number {
-  return state.participants.filter((participant) => participant.role === 'spectator').length;
+  return state.participants.filter(
+    (participant) => participant.role === 'spectator' && !participant.hasLeft,
+  ).length;
 }
 
 function uniqueNickname(baseNickname: string, participants: readonly LobbyParticipant[]): string {
@@ -1027,6 +1274,244 @@ function projectChampionIdentity(offer: Offer): PublicOfferIdentity {
       defaultLoading: offer.champion.assetRefs.defaultLoading,
     },
   };
+}
+
+function projectCompletedBuild(
+  participant: LobbyParticipant,
+  run: LobbyState['completedRunsByParticipantId'][string],
+  snapshot: ChampionSnapshot,
+): LobbyProjection['builds'][number] {
+  const build = Object.fromEntries(
+    DRAFT_SLOT_ORDER.map((slot) => {
+      const selection = run.build[slot];
+      const champion = snapshot.champions.find(
+        (candidate) => candidate.id === selection.championId,
+      );
+      const variant = champion?.variants.find((candidate) => candidate.id === selection.variantId);
+      const component = variant?.components[slot];
+      if (!champion || !variant || !component || component.id !== selection.componentId) {
+        throw new LobbyStateError(
+          'invalid_state',
+          'A completed build references missing snapshot data.',
+        );
+      }
+      return [
+        slot,
+        {
+          slot,
+          componentId: component.id,
+          name: component.name,
+          iconRef: component.iconRef,
+          shortDescription: component.shortDescription,
+          fullDescription: component.fullDescription,
+          champion: {
+            id: champion.id,
+            name: champion.name,
+            title: champion.title,
+            icon: champion.assetRefs.icon,
+            defaultSplash: champion.assetRefs.defaultSplash,
+            defaultLoading: champion.assetRefs.defaultLoading,
+          },
+          variant: { id: variant.id, ...(variant.label ? { label: variant.label } : {}) },
+        },
+      ];
+    }),
+  ) as LobbyProjection['builds'][number]['build'];
+  return {
+    participantId: participant.id,
+    nickname: participant.nickname,
+    hasLeft: participant.hasLeft,
+    build,
+  };
+}
+
+function beginReveal(state: LobbyState, now: number): LobbyState {
+  const candidateIds = state.revealOrderParticipantIds;
+  if (candidateIds.length === 0) {
+    throw new LobbyStateError('invalid_state', 'The reveal needs at least one completed build.');
+  }
+  const revealedCount = state.settings.revealOrder === 'all-at-once' ? candidateIds.length : 1;
+  return touchState(
+    {
+      ...state,
+      phase: 'revealing',
+      revealedCount,
+      deadlineAt: Math.floor(now) + REVEAL_STEP_MS,
+    },
+    now,
+  );
+}
+
+function advanceReveal(state: LobbyState, now: number): LobbyState {
+  if (state.phase !== 'revealing') return state;
+  if (
+    state.settings.revealOrder === 'staged' &&
+    state.revealedCount < state.revealOrderParticipantIds.length
+  ) {
+    return touchState(
+      {
+        ...state,
+        revealedCount: state.revealedCount + 1,
+        deadlineAt: Math.floor(now) + REVEAL_STEP_MS,
+      },
+      now,
+    );
+  }
+  return enterVoting(state, now);
+}
+
+function enterVoting(state: LobbyState, now: number): LobbyState {
+  return touchState(
+    {
+      ...state,
+      phase: 'voting',
+      revealedCount: state.revealOrderParticipantIds.length,
+      votesByIdentityHash: {},
+      deadlineAt: Math.floor(now) + LOBBY_VOTE_DURATIONS_MS[state.settings.speed],
+    },
+    now,
+  );
+}
+
+function finishVoting(state: LobbyState, now: number): LobbyState {
+  if (state.phase !== 'voting') return state;
+  return touchState({ ...state, phase: 'results', deadlineAt: null }, now);
+}
+
+function completeVoteIfConnectedVotersActed(state: LobbyState, now: number): LobbyState {
+  if (state.phase !== 'voting') return state;
+  const connectedVoters = state.participants.filter(
+    (candidate) => isVoter(candidate) && candidate.isConnected,
+  );
+  if (
+    connectedVoters.length > 0 &&
+    connectedVoters.every(
+      (candidate) => identityForParticipant(candidate) in state.votesByIdentityHash,
+    )
+  ) {
+    return finishVoting(state, now);
+  }
+  return state;
+}
+
+function countVotes(state: LobbyState): NonNullable<LobbyProjection['voteTotals']> {
+  const totals = new Map(state.revealOrderParticipantIds.map((id) => [id, 0]));
+  for (const targetId of Object.values(state.votesByIdentityHash)) {
+    if (totals.has(targetId)) totals.set(targetId, (totals.get(targetId) ?? 0) + 1);
+  }
+  return state.revealOrderParticipantIds.map((participantId) => ({
+    participantId,
+    votes: totals.get(participantId) ?? 0,
+  }));
+}
+
+function isVoter(participant: LobbyParticipant): boolean {
+  return (
+    !participant.hasLeft &&
+    (participant.role === 'host' ||
+      participant.role === 'player' ||
+      participant.role === 'spectator')
+  );
+}
+
+function identityForParticipant(participant: LobbyParticipant): string {
+  return participant.identityKeyHash ?? `legacy:${participant.id}`;
+}
+
+function sameIdentity(left: LobbyParticipant, right: LobbyParticipant): boolean {
+  return left.identityKeyHash && right.identityKeyHash
+    ? left.identityKeyHash === right.identityKeyHash
+    : left.id === right.id;
+}
+
+function removeParticipant(
+  state: LobbyState,
+  target: LobbyParticipant,
+  now: number,
+): LobbyState | null {
+  const beforeReveal =
+    state.phase === 'waiting' || state.phase === 'drafting' || state.phase === 'draft-complete';
+  const participants = state.participants
+    .map((candidate) =>
+      candidate.id === target.id && !beforeReveal && candidate.role !== 'display'
+        ? {
+            ...candidate,
+            role: candidate.role === 'host' ? ('player' as const) : candidate.role,
+            ready: false,
+            isConnected: false,
+            connectionId: null,
+            connectedAt: null,
+            hasLeft: true,
+          }
+        : candidate,
+    )
+    .filter(
+      (candidate) => candidate.id !== target.id || (!beforeReveal && candidate.role !== 'display'),
+    );
+
+  const hostLeaving = target.id === state.hostParticipantId;
+  const remaining = participants.filter(
+    (candidate) => !candidate.hasLeft && candidate.id !== target.id,
+  );
+  let nextHostId = state.hostParticipantId;
+  if (hostLeaving) {
+    const nextHost = [...remaining]
+      .filter((candidate) =>
+        state.phase === 'drafting'
+          ? candidate.role === 'player'
+          : candidate.role === 'player' || candidate.role === 'spectator',
+      )
+      .sort(
+        (left, right) =>
+          Number(right.isConnected) - Number(left.isConnected) ||
+          (left.connectedAt ?? Number.MAX_SAFE_INTEGER) -
+            (right.connectedAt ?? Number.MAX_SAFE_INTEGER) ||
+          left.joinedAt - right.joinedAt ||
+          left.id.localeCompare(right.id),
+      )[0];
+    if (!nextHost) return null;
+    nextHostId = nextHost.id;
+    const hostIndex = participants.findIndex((candidate) => candidate.id === nextHost.id);
+    const promoted = participants[hostIndex];
+    if (promoted) participants[hostIndex] = { ...promoted, role: 'host' };
+  }
+
+  const draftsByParticipantId = { ...state.draftsByParticipantId };
+  const roundLocksByParticipantId = { ...state.roundLocksByParticipantId };
+  const completedRunsByParticipantId = { ...state.completedRunsByParticipantId };
+  if (beforeReveal || target.role === 'display') {
+    delete draftsByParticipantId[target.id];
+    delete roundLocksByParticipantId[target.id];
+    delete completedRunsByParticipantId[target.id];
+  }
+  const revealOrderParticipantIds =
+    beforeReveal || target.role === 'display'
+      ? state.revealOrderParticipantIds.filter((id) => id !== target.id)
+      : [...state.revealOrderParticipantIds];
+
+  const next = touchState(
+    {
+      ...state,
+      participants,
+      hostParticipantId: nextHostId,
+      draftsByParticipantId,
+      roundLocksByParticipantId,
+      completedRunsByParticipantId,
+      revealOrderParticipantIds,
+      revealedCount: state.revealedCount,
+    },
+    now,
+  );
+  return completeVoteIfConnectedVotersActed(next, now);
+}
+
+function constantTimeStringEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
 }
 
 function commandSuccess(

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { randomBytes } from 'node:crypto';
 
 test('local Durable Object authorizes, persists, projects and reconnects lobby sessions', async ({
   page,
@@ -24,10 +25,21 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
       latestSequence: () => number;
     };
 
+    function newIdentityToken(): string {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+      return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
+    }
+
+    const hostIdentityToken = newIdentityToken();
     const createResponse = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ protocolVersion: 2, nickname: 'Host One' }),
+      body: JSON.stringify({
+        protocolVersion: 3,
+        nickname: 'Host One',
+        browserIdentityToken: hostIdentityToken,
+      }),
     });
     const hostJoin = (await createResponse.json()) as Join & { roomCode: string; role: string };
     if (!createResponse.ok) throw new Error(`Room create failed with ${createResponse.status}.`);
@@ -39,7 +51,12 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     const joinResponse = await fetch(`/api/rooms/${hostJoin.roomCode}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ protocolVersion: 2, nickname: 'Player Two', role: 'player' }),
+      body: JSON.stringify({
+        protocolVersion: 3,
+        nickname: 'Player Two',
+        role: 'player',
+        browserIdentityToken: newIdentityToken(),
+      }),
     });
     const playerJoin = (await joinResponse.json()) as Join & { role: string };
     if (!joinResponse.ok) throw new Error(`Join failed with ${joinResponse.status}.`);
@@ -48,7 +65,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     const displayResponse = await fetch(`/api/rooms/${hostJoin.roomCode}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ protocolVersion: 2, role: 'display' }),
+      body: JSON.stringify({ protocolVersion: 3, role: 'display' }),
     });
     const displayJoin = (await displayResponse.json()) as Join & { role: string };
     if (!displayResponse.ok) throw new Error(`Display join failed with ${displayResponse.status}.`);
@@ -73,7 +90,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     const escalationId = 'player-settings-attack';
     player.socket.send(
       JSON.stringify({
-        protocolVersion: 2,
+        protocolVersion: 3,
         commandId: escalationId,
         roomRevision: escalationRevision,
         type: 'host.settings',
@@ -93,7 +110,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     );
 
     const malformedSequence = player.latestSequence();
-    player.socket.send(JSON.stringify({ protocolVersion: 2, type: 'host.start' }));
+    player.socket.send(JSON.stringify({ protocolVersion: 3, type: 'host.start' }));
     const malformed = await player.waitFor(
       (event) => event.type === 'lobby.error' && event.payload.code === 'invalid_command',
       malformedSequence,
@@ -119,7 +136,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     const duplicateSequence = player.latestSequence();
     player.socket.send(
       JSON.stringify({
-        protocolVersion: 2,
+        protocolVersion: 3,
         commandId: 'player-ready',
         roomRevision: playerReady.revision - 1,
         type: 'player.ready',
@@ -241,7 +258,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
       const socketUrl = new URL(join.socketPath, location.href);
       socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       const socket = new WebSocket(socketUrl, [
-        'buildchamp.v2',
+        'buildchamp.v3',
         `participant.${join.participantId}`,
         `token.${join.reconnectToken}`,
       ]);
@@ -299,7 +316,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
           { once: true },
         );
       });
-      if (socket.protocol !== 'buildchamp.v2')
+      if (socket.protocol !== 'buildchamp.v3')
         throw new Error('Server negotiated an unexpected WebSocket protocol.');
       return client;
     }
@@ -308,7 +325,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
       const socketUrl = new URL(join.socketPath, location.href);
       socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       const socket = new WebSocket(socketUrl, [
-        'buildchamp.v2',
+        'buildchamp.v3',
         `participant.${join.participantId}`,
         `token.${join.reconnectToken}`,
       ]);
@@ -350,7 +367,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
       },
     ): Promise<Envelope> {
       const sequence = client.latestSequence();
-      client.socket.send(JSON.stringify({ protocolVersion: 2, ...command }));
+      client.socket.send(JSON.stringify({ protocolVersion: 3, ...command }));
       const ack = await client.waitFor(
         (event) => event.type === 'command.ack' && event.payload.commandId === command.commandId,
         sequence,
@@ -373,8 +390,8 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
   expect(result.rateLimitCode).toBe('rate_limited');
   expect(result.duplicate).toBe(true);
   expect(result.draftingPhase).toBe('drafting');
-  expect(result.protocolVersion).toBe(2);
-  expect(result.infoProtocolVersion).toBe(2);
+  expect(result.protocolVersion).toBe(3);
+  expect(result.infoProtocolVersion).toBe(3);
   expect(result.roleScopedOffers).toBe(true);
   expect(result.displayOnlySeesChampionIdentity).toBe(true);
   expect(result.privateTokenAbsent).toBe(true);
@@ -383,12 +400,337 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
   expect(result.info).toMatchObject({ phase: 'drafting', playerCount: 2 });
 });
 
+test('browser identity may hold one active room until explicit leave', async ({ request }) => {
+  const workerUrl = 'http://127.0.0.1:4175';
+  const identityToken = randomBytes(32).toString('base64url');
+  const secondBrowserToken = randomBytes(32).toString('base64url');
+  const headers = {
+    'Content-Type': 'application/json',
+    'CF-Connecting-IP': '198.51.100.42',
+  };
+  const create = async (nickname: string, browserIdentityToken: string) => {
+    const response = await request.post(`${workerUrl}/api/rooms`, {
+      headers,
+      data: { protocolVersion: 3, nickname, browserIdentityToken },
+    });
+    return { response, body: (await response.json()) as Record<string, unknown> };
+  };
+
+  const first = await create('First Host', identityToken);
+  expect(first.response.status()).toBe(201);
+  expect(JSON.stringify(first.body)).not.toContain(identityToken);
+  const firstRoomCode = first.body.roomCode as string;
+  const firstParticipantId = first.body.participantId as string;
+  const reconnectToken = first.body.reconnectToken as string;
+  const second = await create('Second Host', secondBrowserToken);
+  expect(second.response.status()).toBe(201);
+  const secondRoomCode = second.body.roomCode as string;
+
+  const secondCreateWithSameIdentity = await create('Blocked Host', identityToken);
+  expect(secondCreateWithSameIdentity.response.status()).toBe(409);
+  expect(secondCreateWithSameIdentity.body.error).toBe('active_lobby');
+
+  const crossRoomJoin = await request.post(`${workerUrl}/api/rooms/${secondRoomCode}/join`, {
+    headers,
+    data: {
+      protocolVersion: 3,
+      nickname: 'Blocked Player',
+      role: 'player',
+      browserIdentityToken: identityToken,
+    },
+  });
+  expect(crossRoomJoin.status()).toBe(409);
+  expect(((await crossRoomJoin.json()) as Record<string, unknown>).error).toBe('active_lobby');
+
+  const leave = await request.post(`${workerUrl}/api/rooms/${firstRoomCode}/leave`, {
+    headers,
+    data: {
+      protocolVersion: 3,
+      participantId: firstParticipantId,
+      reconnectToken,
+      browserIdentityToken: identityToken,
+    },
+  });
+  expect(leave.status()).toBe(200);
+
+  const allowedAfterLeave = await request.post(`${workerUrl}/api/rooms/${secondRoomCode}/join`, {
+    headers,
+    data: {
+      protocolVersion: 3,
+      nickname: 'Same Browser',
+      role: 'player',
+      browserIdentityToken: identityToken,
+    },
+  });
+  expect(allowedAfterLeave.status()).toBe(201);
+  expect(((await allowedAfterLeave.json()) as Record<string, unknown>).role).toBe('player');
+});
+
+test('simultaneous room creation cannot reserve one browser identity twice', async ({
+  request,
+}) => {
+  const workerUrl = 'http://127.0.0.1:4175';
+  const identityToken = randomBytes(32).toString('base64url');
+  const headers = {
+    'Content-Type': 'application/json',
+    'CF-Connecting-IP': '198.51.100.43',
+  };
+  const create = (nickname: string) =>
+    request.post(`${workerUrl}/api/rooms`, {
+      headers,
+      data: { protocolVersion: 3, nickname, browserIdentityToken: identityToken },
+    });
+
+  const [first, second] = await Promise.all([create('Race One'), create('Race Two')]);
+  expect([first.status(), second.status()].sort()).toEqual([201, 409]);
+  const winner = first.ok() ? first : second;
+  const blocked = first.ok() ? second : first;
+  const created = (await winner.json()) as Record<string, unknown>;
+  const denied = (await blocked.json()) as Record<string, unknown>;
+  expect(JSON.stringify(created)).not.toContain(identityToken);
+  expect(denied.error).toMatch(/^(active_lobby|identity_claim_pending)$/u);
+
+  const leave = await request.post(`${workerUrl}/api/rooms/${created.roomCode}/leave`, {
+    headers,
+    data: {
+      protocolVersion: 3,
+      participantId: created.participantId,
+      reconnectToken: created.reconnectToken,
+      browserIdentityToken: identityToken,
+    },
+  });
+  expect(leave.status()).toBe(200);
+});
+
+test('lost create and join responses recover the same private seat idempotently', async ({
+  request,
+}) => {
+  const workerUrl = 'http://127.0.0.1:4175';
+  const hostIdentity = randomBytes(32).toString('base64url');
+  const playerIdentity = randomBytes(32).toString('base64url');
+  const headers = {
+    'Content-Type': 'application/json',
+    'CF-Connecting-IP': '198.51.100.44',
+  };
+  const create = async (nickname: string, browserIdentityToken: string) => {
+    const response = await request.post(`${workerUrl}/api/rooms`, {
+      headers,
+      data: { protocolVersion: 3, nickname, browserIdentityToken },
+    });
+    return { response, body: (await response.json()) as Record<string, unknown> };
+  };
+  const recover = async (browserIdentityToken: string) => {
+    const response = await request.post(`${workerUrl}/api/rooms/recover`, {
+      headers,
+      data: { protocolVersion: 3, browserIdentityToken },
+    });
+    return { response, body: (await response.json()) as Record<string, unknown> };
+  };
+
+  const lostHostResponse = await create('Recover Host', hostIdentity);
+  expect(lostHostResponse.response.status()).toBe(201);
+  const hostRecovery = await recover(hostIdentity);
+  expect(hostRecovery.response.status(), JSON.stringify(hostRecovery.body)).toBe(200);
+  expect(hostRecovery.body).toMatchObject({
+    roomCode: lostHostResponse.body.roomCode,
+    participantId: lostHostResponse.body.participantId,
+    role: 'host',
+  });
+  expect(hostRecovery.body.reconnectToken).not.toBe(lostHostResponse.body.reconnectToken);
+  expect(JSON.stringify(hostRecovery.body)).not.toContain(hostIdentity);
+  const repeatedHostRecovery = await recover(hostIdentity);
+  expect(repeatedHostRecovery.response.status()).toBe(200);
+  expect(repeatedHostRecovery.body.participantId).toBe(hostRecovery.body.participantId);
+  expect(repeatedHostRecovery.body.reconnectToken).toBe(hostRecovery.body.reconnectToken);
+
+  const lostPlayerResponse = await request.post(
+    `${workerUrl}/api/rooms/${hostRecovery.body.roomCode}/join`,
+    {
+      headers,
+      data: {
+        protocolVersion: 3,
+        nickname: 'Recover Player',
+        role: 'player',
+        browserIdentityToken: playerIdentity,
+      },
+    },
+  );
+  expect(lostPlayerResponse.status()).toBe(201);
+  const lostPlayer = (await lostPlayerResponse.json()) as Record<string, unknown>;
+  const wrongIdentity = await recover(randomBytes(32).toString('base64url'));
+  expect(wrongIdentity.response.status()).toBe(404);
+
+  const playerRecovery = await recover(playerIdentity);
+  expect(playerRecovery.response.status()).toBe(200);
+  expect(playerRecovery.body).toMatchObject({
+    roomCode: lostPlayer.roomCode,
+    participantId: lostPlayer.participantId,
+    role: 'player',
+  });
+  expect(JSON.stringify(playerRecovery.body)).not.toContain(playerIdentity);
+  const oldCredential = await request.post(
+    `${workerUrl}/api/rooms/${playerRecovery.body.roomCode}/claim`,
+    {
+      headers,
+      data: {
+        protocolVersion: 3,
+        participantId: lostPlayer.participantId,
+        reconnectToken: lostPlayer.reconnectToken,
+        browserIdentityToken: playerIdentity,
+      },
+    },
+  );
+  expect(oldCredential.status()).toBe(401);
+  const recoveredCredential = await request.post(
+    `${workerUrl}/api/rooms/${playerRecovery.body.roomCode}/claim`,
+    {
+      headers,
+      data: {
+        protocolVersion: 3,
+        participantId: playerRecovery.body.participantId,
+        reconnectToken: playerRecovery.body.reconnectToken,
+        browserIdentityToken: playerIdentity,
+      },
+    },
+  );
+  expect(recoveredCredential.status()).toBe(200);
+
+  const leave = await request.post(`${workerUrl}/api/rooms/${playerRecovery.body.roomCode}/leave`, {
+    headers,
+    data: {
+      protocolVersion: 3,
+      participantId: playerRecovery.body.participantId,
+      reconnectToken: playerRecovery.body.reconnectToken,
+      browserIdentityToken: playerIdentity,
+    },
+  });
+  expect(leave.status()).toBe(200);
+  expect((await recover(playerIdentity)).response.status()).toBe(404);
+  const playerCanJoinAfterLeave = await create('Recovered Again', playerIdentity);
+  expect(playerCanJoinAfterLeave.response.status()).toBe(201);
+});
+
+test('identity recovery clears a stale claim after the room removes that seat', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    type Join = {
+      participantId: string;
+      reconnectToken: string;
+      roomCode: string;
+      socketPath: string;
+    };
+    type Envelope = {
+      type: string;
+      revision: number;
+      payload: Record<string, unknown>;
+    };
+
+    const newIdentityToken = () => {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+      return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
+    };
+    const create = await fetch('/api/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        protocolVersion: 3,
+        nickname: 'Removal Host',
+        browserIdentityToken: newIdentityToken(),
+      }),
+    });
+    const host = (await create.json()) as Join;
+    if (!create.ok) throw new Error('Room creation failed.');
+    const playerIdentity = newIdentityToken();
+    const join = await fetch(`/api/rooms/${host.roomCode}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        protocolVersion: 3,
+        nickname: 'Removed Player',
+        role: 'player',
+        browserIdentityToken: playerIdentity,
+      }),
+    });
+    const player = (await join.json()) as Join;
+    if (!join.ok) throw new Error('Player join failed.');
+
+    const socketUrl = new URL(host.socketPath, location.href);
+    socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(socketUrl, [
+      'buildchamp.v3',
+      `participant.${host.participantId}`,
+      `token.${host.reconnectToken}`,
+    ]);
+    const snapshot = await new Promise<Envelope>((resolve, reject) => {
+      socket.addEventListener('message', (message) => {
+        const event = JSON.parse(String(message.data)) as Envelope;
+        if (event.type === 'lobby.snapshot') resolve(event);
+      });
+      socket.addEventListener('error', () => reject(new Error('Host connection failed.')));
+      window.setTimeout(() => reject(new Error('Initial room snapshot timed out.')), 5_000);
+    });
+    const commandId = 'remove-active-seat';
+    const acknowledged = new Promise<Envelope>((resolve, reject) => {
+      socket.addEventListener('message', (message) => {
+        const event = JSON.parse(String(message.data)) as Envelope;
+        if (event.type === 'command.ack' && event.payload.commandId === commandId) resolve(event);
+      });
+      window.setTimeout(() => reject(new Error('Removal command timed out.')), 5_000);
+    });
+    socket.send(
+      JSON.stringify({
+        protocolVersion: 3,
+        commandId,
+        roomRevision: snapshot.revision,
+        type: 'host.remove',
+        payload: { participantId: player.participantId },
+      }),
+    );
+    await acknowledged;
+    socket.close();
+
+    const recovery = await fetch('/api/rooms/recover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ protocolVersion: 3, browserIdentityToken: playerIdentity }),
+    });
+    const recoveryBody = (await recovery.json()) as Record<string, unknown>;
+    const rejoin = await fetch(`/api/rooms/${host.roomCode}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        protocolVersion: 3,
+        nickname: 'Back in Room',
+        role: 'player',
+        browserIdentityToken: playerIdentity,
+      }),
+    });
+    const rejoinBody = (await rejoin.json()) as Join;
+    return {
+      recoveryStatus: recovery.status,
+      recoveryError: recoveryBody.error,
+      rejoinStatus: rejoin.status,
+      rejoinedAsNewSeat: rejoinBody.participantId !== player.participantId,
+    };
+  });
+
+  expect(result).toEqual({
+    recoveryStatus: 404,
+    recoveryError: 'active_room_not_found',
+    rejoinStatus: 201,
+    rejoinedAsNewSeat: true,
+  });
+});
+
 test('room API rejects cross-origin, malformed and oversized HTTP requests', async ({
   request,
 }) => {
   const crossOrigin = await request.post('http://127.0.0.1:4175/api/rooms', {
     headers: { Origin: 'https://example.invalid', 'Content-Type': 'application/json' },
-    data: { protocolVersion: 2, nickname: 'A Host' },
+    data: { protocolVersion: 3, nickname: 'A Host' },
   });
   expect(crossOrigin.status()).toBe(403);
 
@@ -400,7 +742,7 @@ test('room API rejects cross-origin, malformed and oversized HTTP requests', asy
 
   const oversized = await request.post('http://127.0.0.1:4175/api/rooms', {
     headers: { 'Content-Type': 'application/json' },
-    data: JSON.stringify({ protocolVersion: 2, nickname: 'A'.repeat(5000) }),
+    data: JSON.stringify({ protocolVersion: 3, nickname: 'A'.repeat(5000) }),
   });
   expect(oversized.status()).toBe(400);
 });

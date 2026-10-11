@@ -294,10 +294,10 @@ export function generateSharedOffers(
   states: readonly DraftingRunState[],
   random: RandomSource = Math.random,
 ): readonly Offer[] {
-  if (states.length < 2) {
+  if (states.length === 0) {
     throw new DraftEngineError(
       'invalid-state',
-      'A shared offer requires at least two active drafting players.',
+      'A shared offer requires at least one active drafting player.',
     );
   }
 

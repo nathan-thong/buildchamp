@@ -2,15 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { LobbyProjection } from '../../worker/lobby/schemas';
 import {
+  claimLobbySession,
   connectLobbySocket,
   makeClientCommand,
+  LobbySessionError,
   type LobbyCommandRequest,
   type LobbySession,
 } from './lobby-client';
 
-export type LobbyConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
+export type LobbyConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'blocked';
 
-export function useLobbyConnection(session: LobbySession) {
+export function useLobbyConnection(session: LobbySession | null) {
   const [projection, setProjection] = useState<LobbyProjection | null>(null);
   const [status, setStatus] = useState<LobbyConnectionStatus>('connecting');
   const [error, setError] = useState<string | null>(null);
@@ -18,27 +20,50 @@ export function useLobbyConnection(session: LobbySession) {
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
+    if (!session) {
+      setProjection(null);
+      projectionRef.current = null;
+      setStatus('connecting');
+      setError(null);
+      socketRef.current = null;
+      return;
+    }
+    const activeSession = session;
     let active = true;
     let reconnectTimer: number | null = null;
     let attempts = 0;
 
-    function connect() {
+    async function connect() {
       if (!active) return;
       setStatus(attempts === 0 ? 'connecting' : 'reconnecting');
       try {
-        const socket = connectLobbySocket(session, {
+        await claimLobbySession(activeSession);
+        if (!active) return;
+        const socket = connectLobbySocket(activeSession, {
           onOpen: () => {
             if (!active) return;
             attempts = 0;
             setStatus('connected');
             setError(null);
           },
-          onClose: () => {
+          onClose: (event) => {
             if (!active) return;
+            if (event.code === 4001) {
+              setStatus('blocked');
+              setError('This room is open in another tab. The newer tab now controls this seat.');
+              return;
+            }
+            if (event.code === 4003 || event.code === 1008) {
+              setStatus('blocked');
+              setError(
+                'This seat has left the room or was removed. Return to Rooms to join again.',
+              );
+              return;
+            }
             setStatus('reconnecting');
             const delay = Math.min(30_000, 500 * 2 ** Math.min(attempts, 6));
             attempts += 1;
-            reconnectTimer = window.setTimeout(connect, delay);
+            reconnectTimer = window.setTimeout(() => void connect(), delay);
           },
           onProjection: (next) => {
             if (!active) return;
@@ -53,17 +78,23 @@ export function useLobbyConnection(session: LobbySession) {
           },
         });
         socketRef.current = socket;
-      } catch {
+      } catch (cause) {
+        if (cause instanceof LobbySessionError && cause.terminal) {
+          setStatus('blocked');
+          setError(cause.message);
+          return;
+        }
         setStatus('reconnecting');
+        setError(cause instanceof Error ? cause.message : 'The room could not be reached.');
         attempts += 1;
         reconnectTimer = window.setTimeout(
-          connect,
+          () => void connect(),
           Math.min(30_000, 500 * 2 ** Math.min(attempts, 6)),
         );
       }
     }
 
-    connect();
+    void connect();
     return () => {
       active = false;
       if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
@@ -81,7 +112,11 @@ export function useLobbyConnection(session: LobbySession) {
       return false;
     }
     try {
-      const command = makeClientCommand(currentProjection.revision, request);
+      const command = makeClientCommand(
+        currentProjection.revision,
+        request,
+        currentProjection.deadlineAt,
+      );
       socket.send(JSON.stringify(command));
       setError(null);
       return true;

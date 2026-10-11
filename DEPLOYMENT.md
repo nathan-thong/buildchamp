@@ -4,10 +4,11 @@ The production Workers.dev site is live at
 [buildchamp.nathan-thong.workers.dev](https://buildchamp.nathan-thong.workers.dev). A browser
 smoke check on 2026-09-28 confirmed direct navigation to `/`, `/solo`, `/build/demo`, and a valid
 versioned `/build/:payload` result. HTTP verification on 2026-10-09 confirmed `/service-worker.js`
-returns 200 and the live JavaScript matched the then-current local build, including updated notices
-and the offline application shell. This was an artifact check, not a new live browser journey. The
-Slice 10 local implementation has since changed the client bundle. The live release remains solo-only:
-the local Slice 9–10 room API, draft UI, and SQLite-backed Durable Object have not been deployed.
+returned 200 and the live JavaScript matched the then-current local build. On 2026-10-11, a read-only
+`GET /api/rooms` returned 405 with the protocol-v2 method response, while `POST /api/rooms/recover`
+returned 404. No live room was created or joined. These checks show a protocol-v2 API surface but do
+not establish a working public room journey or the deployed reveal/vote/rematch behavior. Local
+Slice 11 uses protocol v3 and has not been deployed.
 
 The source inventory and policy review are recorded in [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md),
 but the deployed site does not satisfy the open Riot release gate. New public releases remain blocked
@@ -36,14 +37,16 @@ pnpm run cloudflare:dev
 pnpm test:e2e:multiplayer
 ```
 
-The multiplayer tests start Wrangler in local mode with isolated Durable Object stores. They cover
-both six-round champion modes, participant and QR display screens, authenticated WebSocket
-transport, private offer projections, reconnect, concurrent locks, idempotent retries, and local
-SQLite restoration after a Worker restart. The Random Champs journey exercises the 15-second
-Durable Object deadline alarm and legal timeout autopicks. `pnpm test` verifies the 15-, 30-, and
-45-second deadline presets. These commands use local Wrangler and do not publish or require
-Cloudflare credentials. The one-hour expiry boundary has unit coverage; the alarm's wall-clock
-cleanup is not exercised by this command.
+The multiplayer tests start separate local Wrangler processes with isolated Durable Object stores.
+They cover both six-round champion modes and reveal styles, participant and QR display screens,
+authenticated WebSocket transport, hidden offers and ballots, voting, ties, results, rematch,
+persistent navigation, second-tab takeover, one-seat admission, Leave, recovery, identity
+reservation races, stale-claim cleanup, reconnect, idempotent retries, and local SQLite restoration
+after a Worker restart. The Random Champs journey exercises the 15-second Durable Object deadline
+alarm and legal timeout autopicks. `pnpm test` verifies the 15-, 30-, and 45-second draft and voting
+presets. These commands use local Wrangler and do not publish or require Cloudflare credentials.
+The one-hour expiry boundary has unit coverage; the alarm's hour-long wall-clock cleanup is not
+waited out by this command.
 
 The `worker:types` build step creates the ignored `.wrangler/` directory before calling Wrangler,
 so a clean checkout does not depend on a generated directory from an earlier local run. A detached
@@ -105,8 +108,11 @@ Use Workers Observability for request status, uncaught errors, and deployment di
 sampling rate low in production unless an incident requires a temporary increase. Do not add custom
 logs containing share payloads, nicknames, build choices, or other player data.
 
-The currently deployed solo release uses Workers Static Assets and `workers.dev`. This repository's
-local multiplayer implementation adds a SQLite-backed Durable Object class through the `v1`
-migration and uses the `LOBBIES` binding; both remain local until the release gate is cleared. Solo
-play continues to require no backend, account, or behavioural analytics. Review current Cloudflare
-limits and billing before public promotion.
+The current local Wrangler configuration has the `BuildChampLobby` SQLite Durable Object under the
+`LOBBIES` binding in migration `v1`. It adds an admission-only `BuildChampBrowserIdentity` SQLite
+Durable Object under `IDENTITIES` in migration `v2`; the room object remains the sole gameplay-state
+owner. Local type generation, build, Worker tests, and Wrangler dry-run cover this configuration.
+The v2 migration has not been applied to the live service, and no production deploy was performed.
+Before a future deploy, confirm the target's current migration history and review the migration plan
+against its live bindings. Solo play continues to require no backend, account, or behavioural
+analytics. Review current Cloudflare limits and billing before public promotion.

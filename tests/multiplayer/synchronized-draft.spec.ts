@@ -27,6 +27,23 @@ test('players join the shared room, lock privately, and advance together', async
     await expect(page.locator('.lobby-room-header__meta')).toContainText('Connected');
     const roomCode = (await page.locator('.room-code-block strong').innerText()).trim();
 
+    await page.getByRole('link', { name: 'Solo draft', exact: true }).click();
+    await expect(page).toHaveURL(/\/solo$/u);
+    const activeRoomBanner = page.getByRole('complementary', { name: 'Active room' });
+    await expect(activeRoomBanner).toContainText(`Room ${roomCode}`);
+    await expect(activeRoomBanner).toContainText('Connected in this browser');
+    await page.getByRole('link', { name: 'Rooms', exact: true }).click();
+    await expect(page).toHaveURL(/\/lobby$/u);
+    await expect(activeRoomBanner.getByRole('link', { name: 'Return to room' })).toBeVisible();
+    await activeRoomBanner.getByRole('link', { name: 'Return to room' }).click();
+    await expect(page).toHaveURL(new RegExp(`/room/${roomCode}$`, 'u'));
+    await expect(page.getByRole('heading', { name: 'Room waiting' })).toBeVisible();
+    await expect(activeRoomBanner.getByRole('link', { name: 'Return to room' })).toHaveCount(0);
+    await expect(activeRoomBanner.getByRole('button', { name: 'Leave room' })).toHaveCount(0);
+    await expect(
+      page.locator('.room-code-block').getByRole('button', { name: 'Leave room' }),
+    ).toBeVisible();
+
     await playerPage.goto(`/room/${roomCode}`);
     await playerPage.locator('#player-nickname').fill('Player Two');
     await playerPage.getByRole('button', { name: 'Join room' }).click();
@@ -127,26 +144,155 @@ test('players join the shared room, lock privately, and advance together', async
           displayPage.getByRole('heading', { name: `Round ${nextRound} of 6` }),
         ).toBeVisible();
       } else {
+        await expect(page.getByRole('heading', { name: '1 of 3 builds revealed' })).toBeVisible();
         await expect(
-          page.getByRole('heading', { name: 'All six choices are locked.' }),
+          playerPage.getByRole('heading', { name: '1 of 3 builds revealed' }),
         ).toBeVisible();
         await expect(
-          playerPage.getByRole('heading', { name: 'All six choices are locked.' }),
+          displayPage.getByRole('heading', { name: '1 of 3 builds revealed' }),
         ).toBeVisible();
-        await expect(
-          displayPage.getByRole('heading', { name: 'All six rounds are complete.' }),
-        ).toBeVisible();
-        await expect(
-          displayPage.getByText('Builds remain private until the reveal step.'),
-        ).toBeVisible();
-        await expect(displayPage.locator('.display-champion')).toHaveCount(0);
+        await expect(displayPage.getByRole('heading', { name: 'The reveal is on.' })).toBeVisible();
+        await expect(displayPage.locator('.lobby-build-card')).toHaveCount(1);
+        await expect(page.locator('.lobby-build-card')).toHaveCount(1);
         await expect(page.locator('.multiplayer-choice')).toHaveCount(0);
       }
     }
     expect(offeredChampions).toHaveLength(6);
     expect(new Set(offeredChampions).size).toBe(6);
+
+    await page.getByRole('button', { name: 'Reveal next build' }).click();
+    await expect(page.getByRole('heading', { name: '2 of 3 builds revealed' })).toBeVisible();
+    await expect(
+      displayPage.getByRole('heading', { name: '2 of 3 builds revealed' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Reveal next build' }).click();
+    await expect(page.getByRole('heading', { name: '3 of 3 builds revealed' })).toBeVisible();
+    await page.getByRole('button', { name: 'Begin voting' }).click();
+
+    for (const clientPage of [page, playerPage, thirdPage, latePage]) {
+      await expect(
+        clientPage.getByRole('heading', { name: 'Which build do you prefer?' }),
+      ).toBeVisible();
+    }
+    await expect(
+      displayPage.getByRole('heading', { name: 'Which build do you prefer?' }),
+    ).toBeVisible();
+    await expect(displayPage.locator('.lobby-build-card__vote')).toHaveCount(0);
+    await Promise.all([
+      page.getByRole('button', { name: "Vote for Player Two's build" }).click(),
+      playerPage.getByRole('button', { name: "Vote for Host One's build" }).click(),
+      thirdPage.getByRole('button', { name: "Vote for Host One's build" }).click(),
+      latePage.getByRole('button', { name: "Vote for Player Two's build" }).click(),
+    ]);
+
+    for (const clientPage of [page, playerPage, thirdPage, latePage, displayPage]) {
+      await expect(clientPage.getByRole('heading', { name: 'A shared victory' })).toBeVisible();
+    }
+    await expect(page.locator('.lobby-build-card__votes')).toHaveText([
+      '2 votes',
+      '2 votes',
+      '0 votes',
+    ]);
+    await page.getByRole('button', { name: 'Draft a fresh rematch' }).click();
+    await expect(page.getByRole('heading', { name: 'Round 1 of 6' })).toBeVisible();
+    await expect(playerPage.getByRole('heading', { name: 'Round 1 of 6' })).toBeVisible();
+    await expect(displayPage.getByRole('heading', { name: 'Round 1 of 6' })).toBeVisible();
   } finally {
     await Promise.all(contexts.map((context) => context.close()));
+  }
+});
+
+test('All builds at once supports a complete reveal, vote, results, and rematch', async ({
+  browser,
+}) => {
+  test.setTimeout(45_000);
+  const contexts = await Promise.all([
+    browser.newContext({ baseURL: BASE_URL }),
+    browser.newContext({ baseURL: BASE_URL }),
+    browser.newContext({ baseURL: BASE_URL }),
+  ]);
+  const host = await contexts[0]?.newPage();
+  const player = await contexts[1]?.newPage();
+  const display = await contexts[2]?.newPage();
+  if (!host || !player || !display) throw new Error('Could not open the room clients.');
+
+  try {
+    await host.goto('/lobby');
+    await host.locator('#host-nickname').fill('Reveal Host');
+    await host.getByRole('button', { name: 'Create private room' }).click();
+    await expect(host.getByRole('heading', { name: 'Room waiting' })).toBeVisible();
+    const roomCode = (await host.locator('.room-code-block strong').innerText()).trim();
+    await host.getByLabel('Reveal style').selectOption('all-at-once');
+
+    await player.goto(`/room/${roomCode}`);
+    await player.locator('#player-nickname').fill('Reveal Player');
+    await player.getByRole('button', { name: 'Join room' }).click();
+    await expect(player.getByRole('heading', { name: 'Room waiting' })).toBeVisible();
+    await display.goto(`/display/${roomCode}`);
+
+    await host.getByRole('button', { name: /I’m ready/ }).click();
+    await player.getByRole('button', { name: /I’m ready/ }).click();
+    await host.getByRole('button', { name: /Start draft/ }).click();
+
+    for (let round = 1; round <= 6; round += 1) {
+      await expect(host.getByRole('heading', { name: `Round ${round} of 6` })).toBeVisible();
+      await lockFirstAvailable(host);
+      await lockFirstAvailable(player);
+    }
+
+    await expect(host.getByRole('heading', { name: '2 of 2 builds revealed' })).toBeVisible();
+    await expect(player.getByRole('heading', { name: '2 of 2 builds revealed' })).toBeVisible();
+    await expect(display.getByRole('heading', { name: '2 of 2 builds revealed' })).toBeVisible();
+    await expect(host.locator('.lobby-build-card')).toHaveCount(2);
+    await host.getByRole('button', { name: 'Begin voting' }).click();
+    await expect(player.getByRole('heading', { name: 'Which build do you prefer?' })).toBeVisible();
+    await expect(display.locator('.lobby-build-card__vote')).toHaveCount(0);
+
+    await Promise.all([
+      host.getByRole('button', { name: "Vote for Reveal Player's build" }).click(),
+      player.getByRole('button', { name: "Vote for Reveal Host's build" }).click(),
+    ]);
+    await expect(host.getByRole('heading', { name: 'A shared victory' })).toBeVisible();
+    await expect(display.getByRole('heading', { name: 'A shared victory' })).toBeVisible();
+    await host.getByRole('button', { name: 'Draft a fresh rematch' }).click();
+    await expect(host.getByRole('heading', { name: 'Round 1 of 6' })).toBeVisible();
+    await expect(player.getByRole('heading', { name: 'Round 1 of 6' })).toBeVisible();
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+  }
+});
+
+test('a second tab takes over the saved participant seat without removing it', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ baseURL: BASE_URL });
+  const firstTab = await context.newPage();
+  const secondTab = await context.newPage();
+
+  try {
+    await firstTab.goto('/lobby');
+    await firstTab.locator('#host-nickname').fill('One Browser');
+    await firstTab.getByRole('button', { name: 'Create private room' }).click();
+    await expect(firstTab.getByRole('heading', { name: 'Room waiting' })).toBeVisible();
+    const roomCode = (await firstTab.locator('.room-code-block strong').innerText()).trim();
+
+    await secondTab.goto(`/room/${roomCode}`);
+    await expect(secondTab.getByRole('heading', { name: 'Room waiting' })).toBeVisible();
+    await expect(secondTab.locator('.lobby-room-header__meta')).toContainText('Connected');
+    await expect(firstTab.getByRole('alert')).toHaveText(
+      'This room is open in another tab. The newer tab now controls this seat.',
+    );
+    await expect(firstTab.getByRole('complementary', { name: 'Active room' })).toContainText(
+      'This tab no longer controls the room',
+    );
+    await expect(
+      secondTab.getByRole('list', { name: 'Room participants' }).getByText('One Browser'),
+    ).toBeVisible();
+    await expect(
+      secondTab.getByRole('list', { name: 'Room participants' }).locator('li'),
+    ).toHaveCount(1);
+  } finally {
+    await context.close();
   }
 });
 
@@ -165,6 +311,9 @@ test('Random Champs reconnects before its shared deadline and alarm-autopicks on
       deadlineAt: number | null;
       lockedCount: number;
       playerCount: number;
+      candidateCount: number;
+      revealedCount: number;
+      builds?: Array<unknown>;
       offer?:
         | {
             id: string;
@@ -207,12 +356,22 @@ test('Random Champs reconnects before its shared deadline and alarm-autopicks on
       latestSequence: () => number;
     };
 
+    function newIdentityToken(): string {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+      return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
+    }
+
     const clients: Client[] = [];
     try {
       const createResponse = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ protocolVersion: 2, nickname: 'Host One' }),
+        body: JSON.stringify({
+          protocolVersion: 3,
+          nickname: 'Host One',
+          browserIdentityToken: newIdentityToken(),
+        }),
       });
       if (!createResponse.ok) throw new Error(`Create failed (${createResponse.status}).`);
       const hostJoin = (await createResponse.json()) as Join;
@@ -557,7 +716,7 @@ test('Random Champs reconnects before its shared deadline and alarm-autopicks on
           (event) =>
             event.type === 'lobby.snapshot' &&
             (round === 6
-              ? event.payload.phase === 'draft-complete'
+              ? event.payload.phase === 'revealing'
               : event.payload.currentRound === round + 1),
         );
         await Promise.all(
@@ -573,7 +732,7 @@ test('Random Champs reconnects before its shared deadline and alarm-autopicks on
             sequence > sequenceBeforeLocks &&
             event.type === 'lobby.snapshot' &&
             (round === 6
-              ? event.payload.phase === 'draft-complete'
+              ? event.payload.phase === 'revealing'
               : event.payload.currentRound === round + 1),
         ).length;
         roundAdvancementCounts.push(advancementCount);
@@ -584,15 +743,15 @@ test('Random Champs reconnects before its shared deadline and alarm-autopicks on
       );
       const finalProjectionJson = JSON.stringify(finalProjection);
       const finalDraftStaysPrivate =
-        finalProjection?.phase === 'draft-complete' &&
-        finalProjection.currentRound === 6 &&
-        finalProjection.deadlineAt === null &&
+        finalProjection?.phase === 'revealing' &&
+        finalProjection.deadlineAt !== null &&
+        finalProjection.revealedCount === 1 &&
+        finalProjection.candidateCount === 3 &&
+        finalProjection.builds?.length === 1 &&
         finalProjection.offer === undefined &&
         finalProjection.offersByPlayer === undefined &&
-        !finalProjectionJson.includes('selectableSlots') &&
-        !finalProjectionJson.includes('components') &&
-        !finalProjectionJson.includes('variant') &&
-        !finalProjectionJson.includes('componentId') &&
+        !finalProjectionJson.includes('completedRunsByParticipantId') &&
+        !finalProjectionJson.includes('votesByIdentityHash') &&
         randomPlayers.every((client) => client.projection?.offer === undefined);
       const advancedExactlyOnceThroughFullRun =
         roundAdvancementCounts.length === 4 && roundAdvancementCounts.every((count) => count === 1);
@@ -652,9 +811,10 @@ test('Random Champs reconnects before its shared deadline and alarm-autopicks on
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            protocolVersion: 2,
+            protocolVersion: 3,
             ...(role === 'display' ? {} : { nickname }),
             role,
+            ...(role === 'display' ? {} : { browserIdentityToken: newIdentityToken() }),
           }),
         });
         if (!response.ok) throw new Error(`Join failed (${response.status}).`);
@@ -665,7 +825,7 @@ test('Random Champs reconnects before its shared deadline and alarm-autopicks on
         const socketUrl = new URL(joinInfo.socketPath, location.href);
         socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(socketUrl, [
-          'buildchamp.v2',
+          'buildchamp.v3',
           `participant.${joinInfo.participantId}`,
           `token.${joinInfo.reconnectToken}`,
         ]);
@@ -723,7 +883,7 @@ test('Random Champs reconnects before its shared deadline and alarm-autopicks on
             once: true,
           });
         });
-        if (socket.protocol !== 'buildchamp.v2') throw new Error('Unexpected protocol version.');
+        if (socket.protocol !== 'buildchamp.v3') throw new Error('Unexpected protocol version.');
         return client;
       }
 
@@ -736,7 +896,7 @@ test('Random Champs reconnects before its shared deadline and alarm-autopicks on
         const revision = client.projection?.revision;
         if (revision === undefined) throw new Error('Client has no current room revision.');
         const result = await sendEnvelope(client, {
-          protocolVersion: 2,
+          protocolVersion: 3,
           commandId,
           roomRevision: revision,
           type,
@@ -759,7 +919,7 @@ test('Random Champs reconnects before its shared deadline and alarm-autopicks on
         if (!offer || !component || !client.projection?.currentRound)
           throw new Error('Private offer was missing.');
         return {
-          protocolVersion: 2,
+          protocolVersion: 3,
           commandId,
           roomRevision: client.projection.revision,
           type: 'player.lock',

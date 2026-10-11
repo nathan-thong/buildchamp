@@ -1,14 +1,11 @@
 import { useState, type FormEvent } from 'react';
 
 import { AppLink } from '../components/AppLink';
-import { joinLobby, createLobby, type LobbySession } from '../lib/lobby-client';
+import { joinLobby, createLobby } from '../lib/lobby-client';
+import { useLobbySession } from '../lib/lobby-session-context';
 
-type LobbyEntryPageProps = {
-  readonly initialRoomCode?: string;
-  readonly onJoined?: (session: LobbySession) => void;
-};
-
-export function LobbyEntryPage({ initialRoomCode = '', onJoined }: LobbyEntryPageProps) {
+export function LobbyEntryPage({ initialRoomCode = '' }: { readonly initialRoomCode?: string }) {
+  const { activateSession, session: activeSession } = useLobbySession();
   const [hostNickname, setHostNickname] = useState('');
   const [roomCode, setRoomCode] = useState(initialRoomCode.toUpperCase());
   const [nickname, setNickname] = useState('');
@@ -22,8 +19,8 @@ export function LobbyEntryPage({ initialRoomCode = '', onJoined }: LobbyEntryPag
     setError(null);
     try {
       const session = await createLobby(hostNickname);
-      if (onJoined) onJoined(session);
-      else navigate(`/room/${session.roomCode}`);
+      activateSession(session);
+      navigate(`/room/${session.roomCode}`);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : 'The room could not be created. Try again.',
@@ -39,8 +36,8 @@ export function LobbyEntryPage({ initialRoomCode = '', onJoined }: LobbyEntryPag
     setError(null);
     try {
       const session = await joinLobby(roomCode, nickname, requestedRole);
-      if (onJoined) onJoined(session);
-      else navigate(`/room/${session.roomCode}`);
+      activateSession(session);
+      navigate(`/room/${session.roomCode}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The room could not be joined. Try again.');
     } finally {
@@ -70,7 +67,11 @@ export function LobbyEntryPage({ initialRoomCode = '', onJoined }: LobbyEntryPag
               required
               value={hostNickname}
             />
-            <button className="button button--primary" disabled={busy} type="submit">
+            <button
+              className="button button--primary"
+              disabled={busy || Boolean(activeSession)}
+              type="submit"
+            >
               {busy ? 'Creating…' : 'Create private room'}
             </button>
           </form>
@@ -112,7 +113,11 @@ export function LobbyEntryPage({ initialRoomCode = '', onJoined }: LobbyEntryPag
               <option value="player">Player</option>
               <option value="spectator">Spectator</option>
             </select>
-            <button className="button button--secondary" disabled={busy} type="submit">
+            <button
+              className="button button--secondary"
+              disabled={busy || Boolean(activeSession)}
+              type="submit"
+            >
               {busy ? 'Joining…' : 'Join room'}
             </button>
           </form>
@@ -127,6 +132,20 @@ export function LobbyEntryPage({ initialRoomCode = '', onJoined }: LobbyEntryPag
       <p className="lobby-entry-footnote">
         No account or chat. <AppLink href="/solo">Play solo instead</AppLink>.
       </p>
+      {activeSession && (
+        <div className="lobby-entry-active-room" role="status">
+          <p>
+            This browser is already in room {activeSession.roomCode}. Return there or leave it
+            before joining another room.
+          </p>
+          <AppLink
+            className="button button--secondary button--small"
+            href={`/room/${activeSession.roomCode}`}
+          >
+            Return to room
+          </AppLink>
+        </div>
+      )}
     </div>
   );
 }

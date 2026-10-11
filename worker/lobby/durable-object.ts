@@ -3,29 +3,39 @@ import { DurableObject } from 'cloudflare:workers';
 import { BUNDLED_CHAMPION_SNAPSHOT } from '../../src/data/runtime-snapshot.ts';
 import {
   AddParticipantResultSchema,
+  AttachIdentityRequestSchema,
   CreateLobbyRequestSchema,
   CreateResultSchema,
+  LeaveLobbyRequestSchema,
   JoinLobbyRequestSchema,
   LOBBY_PROTOCOL_VERSION,
   LOBBY_STATE_VERSION,
+  REVEAL_STEP_MS,
+  LobbyIdentityStatusRequestSchema,
   LobbyStateSchema,
+  LobbyStateV2Schema,
   PublicRoomInfoSchema,
+  RecoverIdentityRequestSchema,
+  RecoverIdentityResultSchema,
   ServerEventSchema,
   WebSocketAttachmentSchema,
+  WebSocketAttachmentV2Schema,
   type LobbyState,
   type ServerEvent,
   type WebSocketAttachment,
 } from './schemas.ts';
 import {
   addLobbyParticipant,
-  advanceExpiredDraftRound,
+  advanceExpiredLobbyPhase,
   connectLobbyParticipant,
   createLobbyState,
   disconnectLobbyParticipant,
   handleLobbyCommand,
   isLobbyExpired,
   isDraftingPlayer,
+  leaveLobbyParticipant,
   projectLobby,
+  touchState,
   type LobbyCommandFailure,
 } from './state.ts';
 import { ClientCommandSchema } from './schemas.ts';
@@ -56,6 +66,18 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
     }
     if (path === '/internal/join' && request.method === 'POST') {
       return this.joinRoom(request);
+    }
+    if (path === '/internal/leave' && request.method === 'POST') {
+      return this.leaveRoom(request);
+    }
+    if (path === '/internal/identity-status' && request.method === 'POST') {
+      return this.identityStatus(request);
+    }
+    if (path === '/internal/claim-identity' && request.method === 'POST') {
+      return this.claimIdentity(request);
+    }
+    if (path === '/internal/recover-identity' && request.method === 'POST') {
+      return this.recoverIdentity(request);
     }
     if (path === '/internal/socket' && request.method === 'GET') {
       return this.connectSocket(request);
@@ -136,6 +158,7 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
 
       if (!result.ok) {
         this.sendCommandFailure(ws, result);
+        if (result.code === 'stale_revision') this.broadcastSnapshots(state);
         return;
       }
 
@@ -270,6 +293,177 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
     });
   }
 
+  private async leaveRoom(request: Request): Promise<Response> {
+    const parsed = await parseJsonRequest(request, LeaveLobbyRequestSchema);
+    if (!parsed.success) return invalidBodyResponse();
+    return this.serialize(async () => {
+      const storedState = await this.readState();
+      const state = storedState ? await this.persistDeadlineIfNeeded(storedState) : null;
+      if (!state) return jsonResponse({ error: 'room_not_found', message: 'Room not found.' }, 404);
+      const result = leaveLobbyParticipant(
+        state,
+        parsed.data.participantId,
+        parsed.data.reconnectTokenHash,
+        parsed.data.now,
+      );
+      if (!result.removed) {
+        return jsonResponse(
+          { error: 'unauthorized', message: 'The leave session is no longer active.' },
+          401,
+        );
+      }
+      for (const ws of this.ctx.getWebSockets()) {
+        const attachment = readAttachment(ws);
+        if (attachment?.participantId === parsed.data.participantId) {
+          ws.close(4003, 'You left this room.');
+        }
+      }
+      if (!result.state) {
+        this.closeAllSockets(1001, 'Room is empty.');
+        await this.ctx.storage.deleteAll();
+        return jsonResponse({ left: true, roomDeleted: true });
+      }
+      await this.saveState(result.state);
+      this.broadcastSnapshots(result.state, parsed.data.participantId);
+      return jsonResponse({ left: true, roomDeleted: false });
+    });
+  }
+
+  private async identityStatus(request: Request): Promise<Response> {
+    const parsed = await parseJsonRequest(request, LobbyIdentityStatusRequestSchema);
+    if (!parsed.success) return invalidBodyResponse();
+    return this.serialize(async () => {
+      const storedState = await this.readState();
+      const state = storedState ? await this.persistDeadlineIfNeeded(storedState) : null;
+      const participant = state?.participants.find(({ id }) => id === parsed.data.participantId);
+      const active = Boolean(
+        state &&
+        participant &&
+        !participant.hasLeft &&
+        participant.role !== 'display' &&
+        participant.identityKeyHash === parsed.data.identityKeyHash,
+      );
+      return jsonResponse({ active, ...(active && state ? { expiresAt: state.expiresAt } : {}) });
+    });
+  }
+
+  private async claimIdentity(request: Request): Promise<Response> {
+    const parsed = await parseJsonRequest(request, AttachIdentityRequestSchema);
+    if (!parsed.success) return invalidBodyResponse();
+    return this.serialize(async () => {
+      const storedState = await this.readState();
+      const state = storedState ? await this.persistDeadlineIfNeeded(storedState) : null;
+      const participantIndex =
+        state?.participants.findIndex(({ id }) => id === parsed.data.participantId) ?? -1;
+      const participant = participantIndex >= 0 ? state?.participants[participantIndex] : undefined;
+      if (
+        !state ||
+        !participant ||
+        participant.hasLeft ||
+        participant.role === 'display' ||
+        !constantTimeEqual(participant.reconnectTokenHash, parsed.data.reconnectTokenHash)
+      ) {
+        return jsonResponse(
+          { error: 'unauthorized', message: 'This room session is no longer active.' },
+          401,
+        );
+      }
+      if (
+        participant.identityKeyHash &&
+        participant.identityKeyHash !== parsed.data.identityKeyHash
+      ) {
+        return jsonResponse(
+          { error: 'identity_conflict', message: 'This seat belongs to another browser identity.' },
+          409,
+        );
+      }
+      if (participant.identityKeyHash === parsed.data.identityKeyHash) {
+        return jsonResponse({ claimed: true, expiresAt: state.expiresAt });
+      }
+      const participants = [...state.participants];
+      participants[participantIndex] = {
+        ...participant,
+        identityKeyHash: parsed.data.identityKeyHash,
+      };
+      const updated = touchState({ ...state, participants }, parsed.data.now);
+      await this.saveState(updated);
+      return jsonResponse({ claimed: true, expiresAt: updated.expiresAt });
+    });
+  }
+
+  private async recoverIdentity(request: Request): Promise<Response> {
+    const parsed = await parseJsonRequest(request, RecoverIdentityRequestSchema);
+    if (!parsed.success) return invalidBodyResponse();
+    return this.serialize(async () => {
+      const storedState = await this.readState();
+      let state = storedState ? await this.persistDeadlineIfNeeded(storedState) : null;
+      if (!state) return jsonResponse({ error: 'room_not_found', message: 'Room not found.' }, 404);
+      let participant = state.participants.find(({ id }) => id === parsed.data.participantId);
+      if (
+        !participant ||
+        participant.hasLeft ||
+        participant.role === 'display' ||
+        participant.identityKeyHash !== parsed.data.identityKeyHash
+      ) {
+        return jsonResponse(
+          { error: 'unauthorized', message: 'This browser identity has no active seat here.' },
+          401,
+        );
+      }
+
+      if (participant.reconnectTokenHash !== parsed.data.reconnectTokenHash) {
+        if (participant.isConnected && participant.connectionId) {
+          for (const ws of this.ctx.getWebSockets()) {
+            const attachment = readAttachment(ws);
+            if (attachment?.participantId === participant.id) {
+              ws.close(4001, 'Recovered browser session.');
+            }
+          }
+          state = disconnectLobbyParticipant(
+            state,
+            participant.id,
+            participant.connectionId,
+            parsed.data.now,
+          );
+          participant = state.participants.find(({ id }) => id === parsed.data.participantId);
+          if (!participant) {
+            return jsonResponse({ error: 'room_not_found', message: 'Room not found.' }, 404);
+          }
+        }
+        const participantIndex = state.participants.findIndex(
+          ({ id }) => id === parsed.data.participantId,
+        );
+        const participants = [...state.participants];
+        participants[participantIndex] = {
+          ...participant,
+          reconnectTokenHash: parsed.data.reconnectTokenHash,
+        };
+        state = touchState({ ...state, participants }, parsed.data.now);
+      } else {
+        state = touchState(state, parsed.data.now);
+      }
+
+      await this.saveState(state);
+      this.broadcastSnapshots(state);
+      const recoveredParticipant = state.participants.find(
+        ({ id }) => id === parsed.data.participantId,
+      );
+      if (!recoveredParticipant) {
+        return jsonResponse({ error: 'room_not_found', message: 'Room not found.' }, 404);
+      }
+      return jsonResponse(
+        RecoverIdentityResultSchema.parse({
+          participantId: recoveredParticipant.id,
+          role: recoveredParticipant.role,
+          nickname: recoveredParticipant.nickname,
+          roomCode: state.roomCode,
+          revision: state.revision,
+          expiresAt: state.expiresAt,
+        }),
+      );
+    });
+  }
+
   private async connectSocket(request: Request): Promise<Response> {
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
       return jsonResponse(
@@ -345,7 +539,7 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
         status: 101,
         webSocket: client,
         headers: {
-          'Sec-WebSocket-Protocol': 'buildchamp.v2',
+          'Sec-WebSocket-Protocol': 'buildchamp.v3',
           'Cache-Control': 'no-store',
           'X-Content-Type-Options': 'nosniff',
           'Referrer-Policy': 'no-referrer',
@@ -362,16 +556,33 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
     const raw = await this.ctx.storage.get<unknown>(STATE_KEY);
     if (raw === undefined) return null;
     const parsed = LobbyStateSchema.safeParse(raw);
-    if (!parsed.success) {
+    if (parsed.success) {
+      if (isLobbyExpired(parsed.data, Date.now())) {
+        this.closeAllSockets(1001, 'Room expired.');
+        await this.ctx.storage.deleteAll();
+        return null;
+      }
+      return parsed.data;
+    }
+    const legacy = LobbyStateV2Schema.safeParse(raw);
+    if (!legacy.success) {
       await this.ctx.storage.deleteAll();
       return null;
     }
-    if (isLobbyExpired(parsed.data, Date.now())) {
+    if (legacy.data.expiresAt <= Date.now()) {
       this.closeAllSockets(1001, 'Room expired.');
       await this.ctx.storage.deleteAll();
       return null;
     }
-    return parsed.data;
+    const migrated = migrateLobbyStateV2(legacy.data, Date.now());
+    const validated = LobbyStateSchema.safeParse(migrated);
+    if (!validated.success) {
+      await this.ctx.storage.deleteAll();
+      return null;
+    }
+    await this.ctx.storage.put(STATE_KEY, validated.data);
+    await this.scheduleNextAlarm(validated.data);
+    return validated.data;
   }
 
   private async saveState(state: LobbyState): Promise<void> {
@@ -381,7 +592,7 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
   }
 
   private advanceDeadline(state: LobbyState, now: number): LobbyState {
-    return advanceExpiredDraftRound(state, {
+    return advanceExpiredLobbyPhase(state, {
       now,
       snapshot: BUNDLED_CHAMPION_SNAPSHOT,
       random: secureRandom,
@@ -507,7 +718,39 @@ function createLobbyStateFromRequest(
     hostParticipantId: input.host.participantId,
     hostNickname: input.host.nickname,
     reconnectTokenHash: input.host.reconnectTokenHash,
+    identityKeyHash: input.host.identityKeyHash,
     now: input.now,
+  });
+}
+
+function migrateLobbyStateV2(
+  legacy: ReturnType<typeof LobbyStateV2Schema.parse>,
+  now: number,
+): LobbyState {
+  const participants = legacy.participants.map((participant) => ({
+    ...participant,
+    identityKeyHash: null,
+    hasLeft: false,
+  }));
+  const isComplete = legacy.phase === 'draft-complete';
+  const completedIds = new Set(Object.keys(legacy.completedRunsByParticipantId));
+  const revealOrderParticipantIds = isComplete
+    ? participants.filter(({ id }) => completedIds.has(id)).map(({ id }) => id)
+    : [];
+  return LobbyStateSchema.parse({
+    ...legacy,
+    schemaVersion: LOBBY_STATE_VERSION,
+    protocolVersion: LOBBY_PROTOCOL_VERSION,
+    participants,
+    phase: isComplete ? 'revealing' : legacy.phase,
+    revealOrderParticipantIds,
+    revealedCount: isComplete
+      ? legacy.settings.revealOrder === 'staged'
+        ? 1
+        : revealOrderParticipantIds.length
+      : 0,
+    votesByIdentityHash: {},
+    deadlineAt: isComplete ? Math.floor(now) + REVEAL_STEP_MS : legacy.deadlineAt,
   });
 }
 
@@ -516,7 +759,7 @@ function parseSocketCredentials(
 ): { participantId: string; token: string } | null {
   if (!value) return null;
   const protocols = value.split(',').map((part) => part.trim());
-  if (!protocols.includes('buildchamp.v2')) return null;
+  if (!protocols.includes('buildchamp.v3')) return null;
   const participantId = protocols
     .find((part) => part.startsWith('participant.'))
     ?.slice('participant.'.length);
@@ -548,8 +791,11 @@ function constantTimeEqual(left: string, right: string): boolean {
 }
 
 function readAttachment(ws: WebSocket): WebSocketAttachment | null {
-  const parsed = WebSocketAttachmentSchema.safeParse(ws.deserializeAttachment());
-  return parsed.success ? parsed.data : null;
+  const raw = ws.deserializeAttachment();
+  const parsed = WebSocketAttachmentSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  const legacy = WebSocketAttachmentV2Schema.safeParse(raw);
+  return legacy.success ? { ...legacy.data, schemaVersion: LOBBY_STATE_VERSION } : null;
 }
 
 function secureRandom(): number {
