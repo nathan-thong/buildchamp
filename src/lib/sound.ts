@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 
-export type SoundCue = 'reveal' | 'lock' | 'complete' | 'share';
+export type SoundCue = 'reveal' | 'lock' | 'complete' | 'share' | 'timer';
 
 export type AudioContextFactory = () => AudioContext;
 
@@ -19,6 +19,7 @@ type Tone = Readonly<{
 
 type CueDefinition = Readonly<{
   duration: number;
+  outputVolume?: number;
   tones: readonly Tone[];
 }>;
 
@@ -50,6 +51,14 @@ const CUE_DEFINITIONS: Readonly<Record<SoundCue, CueDefinition>> = {
     tones: [
       { frequency: 440, offset: 0, duration: 0.13, volume: 0.42 },
       { frequency: 587.33, offset: 0.08, duration: 0.17, volume: 0.36 },
+    ],
+  },
+  timer: {
+    duration: 0.2,
+    outputVolume: 0.18,
+    tones: [
+      { frequency: 659.25, offset: 0, duration: 0.1, volume: 0.52 },
+      { frequency: 880, offset: 0.06, duration: 0.12, volume: 0.44 },
     ],
   },
 };
@@ -162,7 +171,7 @@ export function createSoundController(
       const startAt = audioContext.currentTime + 0.01;
       const output = audioContext.createGain();
       output.gain.setValueAtTime(0.0001, startAt);
-      output.gain.exponentialRampToValueAtTime(0.12, startAt + 0.01);
+      output.gain.exponentialRampToValueAtTime(definition.outputVolume ?? 0.12, startAt + 0.01);
       output.gain.exponentialRampToValueAtTime(0.0001, startAt + definition.duration);
       output.connect(audioContext.destination);
 

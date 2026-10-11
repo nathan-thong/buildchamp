@@ -5,6 +5,7 @@ import { createSoundController, type AudioContextFactory } from './sound';
 function createFakeAudioContext() {
   const resume = vi.fn(() => Promise.resolve());
   const oscillatorStop = vi.fn();
+  const gainRampTargets: number[] = [];
   const createOscillator = vi.fn(() => ({
     type: 'sine' as OscillatorType,
     frequency: { setValueAtTime: vi.fn() },
@@ -16,7 +17,7 @@ function createFakeAudioContext() {
   const createGain = vi.fn(() => ({
     gain: {
       setValueAtTime: vi.fn(),
-      exponentialRampToValueAtTime: vi.fn(),
+      exponentialRampToValueAtTime: vi.fn((value: number) => gainRampTargets.push(value)),
     },
     connect: vi.fn(),
   }));
@@ -29,7 +30,7 @@ function createFakeAudioContext() {
     createOscillator,
   } as unknown as AudioContext;
 
-  return { context, createGain, createOscillator, oscillatorStop, resume };
+  return { context, createGain, createOscillator, oscillatorStop, resume, gainRampTargets };
 }
 
 describe('sound controller', () => {
@@ -69,6 +70,18 @@ describe('sound controller', () => {
 
     sound.play('complete');
     expect(fake.createOscillator).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives the shared-display countdown a distinct, stronger cue', async () => {
+    const fake = createFakeAudioContext();
+    const sound = createSoundController({ contextFactory: () => fake.context });
+
+    sound.unlock();
+    sound.play('timer');
+    await Promise.resolve();
+
+    expect(fake.createOscillator).toHaveBeenCalledTimes(2);
+    expect(fake.gainRampTargets).toContain(0.18);
   });
 
   it('does not schedule cues when the browser rejects audio resume', async () => {

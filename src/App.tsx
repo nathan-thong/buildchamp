@@ -3,10 +3,19 @@ import { useEffect, useState } from 'react';
 import { AppShell } from './components/AppShell';
 import { LoadingState } from './components/StatePanels';
 import { HomePage } from './pages/HomePage';
+import { LobbyEntryPage } from './pages/LobbyEntryPage';
+import { LobbyRoomPage } from './pages/LobbyRoomPage';
+import { SharedDisplayPage } from './pages/SharedDisplayPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ResultPage } from './pages/ResultPage';
 import { SoloDraftPage } from './pages/SoloDraftPage';
-import { getPreviewState, parseRoute, readAppLocation, type AppLocation } from './lib/routes';
+import {
+  getPreviewState,
+  parseRoute,
+  readAppLocation,
+  type AppLocation,
+  type AppRoute,
+} from './lib/routes';
 
 function useBrowserLocation(): AppLocation {
   const [location, setLocation] = useState<AppLocation>(() => readAppLocation(window.location));
@@ -23,10 +32,16 @@ function useBrowserLocation(): AppLocation {
   return location;
 }
 
-function pageTitle(routeKind: ReturnType<typeof parseRoute>['kind']): string {
-  switch (routeKind) {
+function pageTitle(route: AppRoute): string {
+  switch (route.kind) {
     case 'solo':
       return 'Solo draft — BuildChamp';
+    case 'lobby':
+      return 'Private rooms — BuildChamp';
+    case 'room':
+      return `Room ${route.roomCode} — BuildChamp`;
+    case 'display':
+      return `Shared display — BuildChamp`;
     case 'result':
       return 'Shared result — BuildChamp';
     case 'not-found':
@@ -42,8 +57,8 @@ export function App() {
   const route = parseRoute(location.pathname);
 
   useEffect(() => {
-    document.title = pageTitle(route.kind);
-  }, [route.kind]);
+    document.title = pageTitle(route);
+  }, [route]);
 
   if (previewState === 'fatal') {
     throw new Error('Fatal state preview requested.');
@@ -60,9 +75,12 @@ export function App() {
   }
 
   return (
-    <AppShell currentRoute={route.kind}>
+    <AppShell currentRoute={route.kind} displayMode={route.kind === 'display'}>
       {route.kind === 'home' && <HomePage />}
       {route.kind === 'solo' && <SoloDraftPage />}
+      {route.kind === 'lobby' && <LobbyEntryPage />}
+      {route.kind === 'room' && <LobbyRoomPage roomCode={route.roomCode} />}
+      {route.kind === 'display' && <SharedDisplayPage roomCode={route.roomCode} />}
       {route.kind === 'result' && <ResultPage payload={route.payload} />}
       {route.kind === 'not-found' && <NotFoundPage />}
     </AppShell>

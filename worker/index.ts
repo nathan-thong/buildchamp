@@ -4,6 +4,7 @@ import {
   AddParticipantResultSchema,
   CreateResultSchema,
   JoinResponseSchema,
+  LOBBY_PROTOCOL_VERSION,
   PublicCreateRoomRequestSchema,
   PublicErrorSchema,
   PublicJoinRequestSchema,
@@ -124,7 +125,7 @@ async function handleRoomApi(request: Request, env: Env): Promise<Response> {
     const requestedRole = body.role ?? 'player';
     const response = await stub.fetch(
       internalJsonRequest('/internal/join', {
-        protocolVersion: 1,
+        protocolVersion: LOBBY_PROTOCOL_VERSION,
         participantId,
         ...(body.nickname !== undefined ? { nickname: body.nickname } : {}),
         requestedRole,
@@ -138,7 +139,7 @@ async function handleRoomApi(request: Request, env: Env): Promise<Response> {
     if (!result.success)
       return apiError(502, 'invalid_room_response', 'The room response was invalid.');
     const joined = JoinResponseSchema.safeParse({
-      protocolVersion: 1,
+      protocolVersion: LOBBY_PROTOCOL_VERSION,
       participantId: result.data.participantId,
       role: result.data.role,
       nickname: result.data.nickname,
@@ -173,7 +174,7 @@ async function createPublicRoom(nickname: string, env: Env): Promise<Response> {
     const reconnectTokenHash = await hashReconnectToken(reconnectToken);
     const response = await env.LOBBIES.getByName(roomCode).fetch(
       internalJsonRequest('/internal/create', {
-        protocolVersion: 1,
+        protocolVersion: LOBBY_PROTOCOL_VERSION,
         roomCode,
         snapshotVersion: BUNDLED_CHAMPION_SNAPSHOT.dataDragonVersion,
         now: Date.now(),
@@ -186,7 +187,7 @@ async function createPublicRoom(nickname: string, env: Env): Promise<Response> {
     if (!created.success)
       return apiError(502, 'invalid_room_response', 'The room response was invalid.');
     const result = JoinResponseSchema.safeParse({
-      protocolVersion: 1,
+      protocolVersion: LOBBY_PROTOCOL_VERSION,
       participantId: created.data.participantId,
       role: 'host',
       nickname: created.data.nickname,
@@ -336,7 +337,7 @@ function apiJson(body: unknown, status = 200): Response {
 }
 
 function apiError(status: number, error: string, message: string): Response {
-  return apiJson({ protocolVersion: 1, error, message }, status);
+  return apiJson({ protocolVersion: LOBBY_PROTOCOL_VERSION, error, message }, status);
 }
 
 async function notFoundResponse(request: Request, env: Env): Promise<Response> {

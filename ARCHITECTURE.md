@@ -119,7 +119,7 @@ All messages use a versioned envelope:
 
 ```ts
 type ClientCommand = {
-  protocolVersion: 1;
+  protocolVersion: 2;
   commandId: string;
   roomRevision: number;
   type: string;
@@ -127,7 +127,7 @@ type ClientCommand = {
 };
 
 type ServerEvent = {
-  protocolVersion: 1;
+  protocolVersion: 2;
   revision: number;
   type: string;
   payload: unknown;
@@ -141,10 +141,13 @@ Private picks are never included in public snapshots before reveal. The shared d
 ### Authoritative Lobby Phases
 
 ```text
-waiting -> drafting -> revealing -> voting -> results
-   ^                                             │
-   └──────────────── rematch ────────────────────┘
+waiting -> drafting -> draft-complete -> revealing -> voting -> results
+   ^                                                        │
+   └──────────────────────── rematch ───────────────────────┘
 ```
+
+The local Slice 10 implementation completes the synchronized draft at `draft-complete`; builds
+remain private until the later reveal slice adds the remaining phases.
 
 The Durable Object validates every transition:
 
@@ -152,12 +155,16 @@ The Durable Object validates every transition:
 - Starting requires 2–8 ready players.
 - Draft locks must reference the current offer and an open, compatible slot.
 - A deadline alarm assigns a random compatible choice to unlocked players.
-- A phase advances early when all required connected participants have acted.
+- A draft round advances early only when every player seat has locked. Disconnected seats stay
+  unresolved until the shared deadline, then receive legal autopicks.
 - Votes are secret, single-use, and cannot target the voter.
 - Tied highest totals produce shared winners.
 - Staged reveal advances on its deadline or host command; All at Once advances immediately.
 
-Quick, Standard, and Relaxed settings use draft timers of 15, 30, and 45 seconds and voting timers of 20, 30, and 45 seconds respectively.
+Quick, Standard, and Relaxed settings use draft timers of 15, 30, and 45 seconds and voting timers
+of 20, 30, and 45 seconds respectively. The selected draft deadline is one absolute timestamp
+shared by every participant. Durable Object commands settle an elapsed deadline before applying a
+late command, and alarm retries are idempotent.
 
 Random selection is performed server-side in multiplayer. Same Champs computes an offer compatible with every active player's remaining state. Random Champs computes one offer per player. Variant weighting is applied by base champion rather than by variant.
 
@@ -257,7 +264,7 @@ Property-based tests are preferred for generation invariants because the state s
 
 ## Portability
 
-Cloudflare-specific code is confined to `apps/worker` and a small transport adapter. The domain state machine accepts commands and produces events without Cloudflare types. Champion snapshots are ordinary JSON. If hosting changes later, the replacement backend needs to provide only ordered per-room command execution, WebSockets, scheduled deadlines, and ephemeral persistence.
+Cloudflare-specific code is confined to `worker/` and a small transport adapter. The domain state machine accepts commands and produces events without Cloudflare types. Champion snapshots are ordinary JSON. If hosting changes later, the replacement backend needs to provide only ordered per-room command execution, WebSockets, scheduled deadlines, and ephemeral persistence.
 
 ## External References
 

@@ -3,13 +3,15 @@
 The production Workers.dev site is live at
 [buildchamp.nathan-thong.workers.dev](https://buildchamp.nathan-thong.workers.dev). A browser
 smoke check on 2026-09-28 confirmed direct navigation to `/`, `/solo`, `/build/demo`, and a valid
-versioned `/build/:payload` result. HTTP verification on 2026-10-09 confirmed `/service-worker.js` returns 200 and the live
-JavaScript exactly matches the current local build, including updated notices and the offline
-application shell. This was an artifact check, not a new live browser journey. The live release is
-still solo-only: the local Slice 9 room API and SQLite-backed Durable Object have not been deployed.
+versioned `/build/:payload` result. HTTP verification on 2026-10-09 confirmed `/service-worker.js`
+returns 200 and the live JavaScript matched the then-current local build, including updated notices
+and the offline application shell. This was an artifact check, not a new live browser journey. The
+Slice 10 local implementation has since changed the client bundle. The live release remains solo-only:
+the local Slice 9–10 room API, draft UI, and SQLite-backed Durable Object have not been deployed.
 
-The deployed site does not satisfy the open Riot release gate. New public releases remain blocked
-until the asset-source review and release decision are recorded.
+The source inventory and policy review are recorded in [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md),
+but the deployed site does not satisfy the open Riot release gate. New public releases remain blocked
+while asset eligibility and the retained Developer Portal audit scope are unresolved.
 
 ## Targets
 
@@ -35,10 +37,13 @@ pnpm test:e2e:multiplayer
 ```
 
 The multiplayer tests start Wrangler in local mode with isolated Durable Object stores. They cover
-the room API, authenticated WebSocket transport, role projections, malformed and oversized
-envelopes, rate limits, reconnect, and versioned SQLite state restoration after a Worker restart.
-They use local Wrangler and do not publish or require Cloudflare credentials. The one-hour expiry
-boundary has unit coverage; the alarm's wall-clock cleanup is not exercised by this command.
+both six-round champion modes, participant and QR display screens, authenticated WebSocket
+transport, private offer projections, reconnect, concurrent locks, idempotent retries, and local
+SQLite restoration after a Worker restart. The Random Champs journey exercises the 15-second
+Durable Object deadline alarm and legal timeout autopicks. `pnpm test` verifies the 15-, 30-, and
+45-second deadline presets. These commands use local Wrangler and do not publish or require
+Cloudflare credentials. The one-hour expiry boundary has unit coverage; the alarm's wall-clock
+cleanup is not exercised by this command.
 
 ## Preview deployment
 
@@ -95,7 +100,7 @@ sampling rate low in production unless an incident requires a temporary increase
 logs containing share payloads, nicknames, build choices, or other player data.
 
 The currently deployed solo release uses Workers Static Assets and `workers.dev`. This repository's
-local multiplayer foundation adds a SQLite-backed Durable Object class through the `v1` migration;
-it will require that migration and the `LOBBIES` binding on a future approved deployment. Solo play
-continues to require no backend, account, or behavioural analytics. Review current Cloudflare limits
-and billing before public promotion.
+local multiplayer implementation adds a SQLite-backed Durable Object class through the `v1`
+migration and uses the `LOBBIES` binding; both remain local until the release gate is cleared. Solo
+play continues to require no backend, account, or behavioural analytics. Review current Cloudflare
+limits and billing before public promotion.

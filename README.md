@@ -1,15 +1,18 @@
 # BuildChamp
 
-BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. Planned private lobbies will let friends draft, reveal their builds, and vote to rank them; a local server-authoritative lobby foundation is implemented, while room screens and synchronized drafting remain planned.
+BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. Local private rooms now support synchronized six-round drafts in Same Champs and Random Champs modes. Group reveals and voting remain planned, and the public Workers.dev release is still solo-only.
 
 A solo run has six rounds. In each round, permanently lock one remaining component—**Body, Q, W, E, R, or Passive**—from the offered champion. There are no skips or rerolls. Build strength stays subjective; players decide which combination wins.
 
 ## Project Status
 
 Slice 7 technical QA and Slice 8 deployment preparation are complete. Slice 9's server-authoritative
-room foundation is implemented and verified locally; Slice 10's participant room screens,
-synchronized draft rounds, and shared display remain planned, as do the later reveal and voting work.
-The local Worker API exposes `POST /api/rooms`,
+room foundation and Slice 10's participant screens, synchronized drafting, and shared display are
+implemented and verified locally. The local app has `/lobby` for hosts, `/room/:code` for players
+and spectators, and `/display/:code` for the QR-enabled shared screen. Drafts support Same Champs
+and Random Champs, 15-, 30-, or 45-second shared deadlines, early advance when all player seats
+lock, reconnect before the deadline, and legal timeout autopicks for unresolved seats. A finished
+draft remains private until the later reveal slice. The local Worker API exposes `POST /api/rooms`,
 `GET /api/rooms/:code`, `POST /api/rooms/:code/join`, and the authenticated
 `GET /api/rooms/:code/socket` WebSocket route. These backend changes have not been deployed; the
 currently live Workers.dev site remains the solo-only release at
@@ -35,7 +38,7 @@ The plan is:
 
 1. Untimed solo draft
 2. Shareable build results
-3. Private friend lobbies (local backend foundation implemented; room UI and synchronized draft planned)
+3. Private friend lobbies (local synchronized draft and shared display implemented; reveal and voting planned)
 4. Shared reveal and voting
 5. Public build rankings only if group play proves useful; accounts remain deferred
 
@@ -95,7 +98,7 @@ pnpm preview
 pnpm test:e2e:multiplayer
 ```
 
-The solo browser suite uses Playwright across Chromium and WebKit, including offline refresh and axe WCAG A/AA checks. The separate `pnpm test:e2e:multiplayer` command builds the app, starts local Wrangler Workers with isolated Durable Object stores, and verifies room creation/join, WebSocket authorization, role projections, malformed and oversized requests, rate limits, reconnect, and versioned SQLite state restoration after a Worker restart. Neither command deploys anything. Install the browser
+The solo browser suite uses Playwright across Chromium and WebKit, including offline refresh and axe WCAG A/AA checks. The separate `pnpm test:e2e:multiplayer` command builds the app, starts local Wrangler Workers with isolated Durable Object stores, and verifies both six-round draft modes, participant and display screens, QR joining, hidden choices, reconnect, deadline autopick, concurrent locks, idempotent retries, WebSocket authorization, role projections, malformed and oversized requests, rate limits, and versioned SQLite state restoration after a Worker restart. `pnpm test` covers the 15-, 30-, and 45-second deadline presets. Neither command deploys anything. Install the browser
 binaries once on a new machine, then run:
 
 ```sh
@@ -119,7 +122,7 @@ release containing Riot data or assets.
 
 Cloudflare deployment preparation is included in the repository. Run `pnpm build:cloudflare` to
 build and verify the deployable assets, or `pnpm run cloudflare:dev` for a local Worker smoke test.
-The Slice 9 API routes listed above are available in local Worker runs; the currently deployed
+The Slice 9 API routes and Slice 10 room screens are available in local Worker runs; the currently deployed
 Workers.dev site still serves the solo-only release. See [DEPLOYMENT.md](./DEPLOYMENT.md) for the
 release gate, deployment, rollback, and monitoring guidance.
 

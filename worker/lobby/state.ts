@@ -1,8 +1,12 @@
 import {
   createRun,
   generateSharedOffers,
+  lockSelection,
+  chooseRandomSelection,
+  selectionForSlot,
   restoreDraftingRun,
   serializeDraftingRun,
+  type Completion,
   type DraftingRunState,
   type Offer,
   type RandomSource,
@@ -52,6 +56,12 @@ const WORDS = /[\p{L}\p{N}]+/gu;
 
 export type DraftMode = LobbySettings['mode'];
 
+export const LOBBY_SPEED_DURATIONS_MS: Readonly<Record<LobbySettings['speed'], number>> = {
+  quick: 15_000,
+  standard: 30_000,
+  relaxed: 45_000,
+};
+
 export type LobbyCommandActor = Readonly<{
   participantId: string;
   connectionId: string;
@@ -73,7 +83,9 @@ export type LobbyCommandFailure = Readonly<{
     | 'wrong_phase'
     | 'not_enough_ready_players'
     | 'participant_not_found'
-    | 'offer_generation_failed';
+    | 'offer_generation_failed'
+    | 'already_locked'
+    | 'offer_mismatch';
   message: string;
 }>;
 
@@ -97,6 +109,7 @@ export class LobbyStateError extends Error {
     | 'player_capacity_full'
     | 'spectator_capacity_full'
     | 'participant_exists'
+    | 'offer_generation_failed'
     | 'invalid_state';
 
   constructor(code: LobbyStateError['code'], message: string) {
@@ -174,6 +187,9 @@ export function createLobbyState(
       revealOrder: 'staged',
     },
     draftsByParticipantId: {},
+    roundLocksByParticipantId: {},
+    completedRunsByParticipantId: {},
+    deadlineAt: null,
     recentCommands: [],
     createdAt: input.now,
     lastActivityAt: input.now,
@@ -323,6 +339,18 @@ export function disconnectLobbyParticipant(
   return touchState({ ...state, participants, hostParticipantId }, now);
 }
 
+/** Resolve an expired round once; repeated alarms observe a new deadline or a completed draft. */
+export function advanceExpiredDraftRound(
+  state: LobbyState,
+  context: LobbyCommandContext,
+): LobbyState {
+  if (state.phase !== 'drafting' || state.deadlineAt === null || context.now < state.deadlineAt) {
+    return state;
+  }
+
+  return resolveDraftRound(state, context);
+}
+
 export function handleLobbyCommand(
   state: LobbyState,
   actor: LobbyCommandActor,
@@ -353,7 +381,11 @@ export function handleLobbyCommand(
     };
   }
 
-  if (command.roomRevision !== state.revision) {
+  const isLockCommand = command.type === 'player.lock';
+  if (
+    command.roomRevision !== state.revision &&
+    (!isLockCommand || command.roomRevision > state.revision)
+  ) {
     return commandFailure(
       state,
       'stale_revision',
@@ -441,6 +473,14 @@ export function handleLobbyCommand(
         command,
       );
     }
+    if (state.phase !== 'waiting' && isDraftingPlayer(target)) {
+      return commandFailure(
+        state,
+        'wrong_phase',
+        'Drafting players cannot be removed after the game starts.',
+        command,
+      );
+    }
     const participants = state.participants.filter((candidate) => candidate.id !== target.id);
     const draftsByParticipantId = { ...state.draftsByParticipantId };
     delete draftsByParticipantId[target.id];
@@ -484,8 +524,19 @@ export function handleLobbyCommand(
         state.settings.mode,
         context.random,
       );
+      const duration = LOBBY_SPEED_DURATIONS_MS[state.settings.speed];
       return commandSuccess(
-        touchState({ ...state, phase: 'drafting', draftsByParticipantId }, context.now),
+        touchState(
+          {
+            ...state,
+            phase: 'drafting',
+            draftsByParticipantId,
+            roundLocksByParticipantId: {},
+            completedRunsByParticipantId: {},
+            deadlineAt: Math.floor(context.now) + duration,
+          },
+          context.now,
+        ),
         actor.participantId,
         command,
         true,
@@ -498,6 +549,78 @@ export function handleLobbyCommand(
         command,
       );
     }
+  }
+
+  if (command.type === 'player.lock') {
+    if (!isDraftingPlayer(participant)) {
+      return commandFailure(
+        state,
+        'unauthorized',
+        'Only drafting players can lock a choice.',
+        command,
+      );
+    }
+    if (state.phase !== 'drafting' || state.deadlineAt === null) {
+      return commandFailure(
+        state,
+        'wrong_phase',
+        'This round is no longer accepting locks.',
+        command,
+      );
+    }
+    if (context.now >= state.deadlineAt) {
+      return commandFailure(state, 'wrong_phase', 'The round deadline has passed.', command);
+    }
+    if (command.payload.round !== getCurrentRound(state)) {
+      return commandFailure(state, 'wrong_phase', 'That choice belongs to another round.', command);
+    }
+    if (participant.id in state.roundLocksByParticipantId) {
+      return commandFailure(
+        state,
+        'already_locked',
+        'Your choice is already locked this round.',
+        command,
+      );
+    }
+    const persisted = state.draftsByParticipantId[participant.id];
+    if (!persisted) {
+      return commandFailure(
+        state,
+        'participant_not_found',
+        'Your draft is no longer active.',
+        command,
+      );
+    }
+    const draft = restoreDraftingRun(context.snapshot, persisted);
+    if (command.payload.selection.offerId !== draft.offer.id) {
+      return commandFailure(
+        state,
+        'offer_mismatch',
+        'That champion offer is no longer current.',
+        command,
+      );
+    }
+    let selection: ReturnType<typeof selectionForSlot>;
+    try {
+      selection = selectionForSlot(draft.offer, command.payload.selection.slot);
+    } catch {
+      return commandFailure(state, 'offer_mismatch', 'That component is not selectable.', command);
+    }
+    if (selection.componentId !== command.payload.selection.componentId) {
+      return commandFailure(state, 'offer_mismatch', 'That component is not selectable.', command);
+    }
+
+    const lockedState = {
+      ...state,
+      roundLocksByParticipantId: {
+        ...state.roundLocksByParticipantId,
+        [participant.id]: selection,
+      },
+    };
+    const nextState = allPlayersLocked(lockedState)
+      ? resolveDraftRound(lockedState, context)
+      : touchState(lockedState, context.now);
+    return commandSuccess(nextState, actor.participantId, command, true);
   }
 
   return commandFailure(
@@ -529,11 +652,23 @@ export function projectLobby(
       role,
       ready,
       isConnected,
+      lockedThisRound:
+        (state.phase === 'draft-complete' && isDraftingPlayer({ role })) ||
+        id in state.roundLocksByParticipantId,
     })),
     expiresAt: state.expiresAt,
+    deadlineAt: state.deadlineAt,
+    lockedCount: Object.keys(state.roundLocksByParticipantId).length,
+    playerCount: state.participants.filter(isDraftingPlayer).length,
   };
 
   if (state.phase === 'waiting' || state.phase === 'results') {
+    return LobbyProjectionSchema.parse(projection);
+  }
+
+  if (state.phase === 'draft-complete') {
+    projection.currentRound = 6;
+    projection.lockedCount = projection.playerCount;
     return LobbyProjectionSchema.parse(projection);
   }
 
@@ -548,8 +683,7 @@ export function projectLobby(
     throw new LobbyStateError('invalid_state', 'An active draft has no private player state.');
   }
 
-  const currentRound = Math.min(...[...draftStates.values()].map((draft) => draft.round + 1));
-  projection.currentRound = currentRound;
+  projection.currentRound = getCurrentRound(state);
 
   if (state.settings.mode === 'same') {
     const offers = [...draftStates.values()].map((draft) => draft.offer);
@@ -566,7 +700,13 @@ export function projectLobby(
     }
     if (audience.role === 'host' || audience.role === 'player') {
       const ownDraft = audience.participantId ? draftStates.get(audience.participantId) : undefined;
-      if (ownDraft) projection.offer = projectOffer(ownDraft.offer);
+      if (
+        ownDraft &&
+        audience.participantId !== null &&
+        !(audience.participantId in state.roundLocksByParticipantId)
+      ) {
+        projection.offer = projectOffer(ownDraft.offer);
+      }
     } else {
       projection.offer = projectPublicOfferIdentity(sharedOffer);
     }
@@ -591,10 +731,128 @@ export function projectLobby(
 
   if (audience.role === 'host' || audience.role === 'player') {
     const ownDraft = audience.participantId ? draftStates.get(audience.participantId) : undefined;
-    if (ownDraft) projection.offer = projectOffer(ownDraft.offer);
+    if (
+      ownDraft &&
+      audience.participantId !== null &&
+      !(audience.participantId in state.roundLocksByParticipantId)
+    ) {
+      projection.offer = projectOffer(ownDraft.offer);
+    }
   }
 
   return LobbyProjectionSchema.parse(projection);
+}
+
+function getCurrentRound(state: LobbyState): number {
+  const rounds = Object.values(state.draftsByParticipantId).map((draft) => draft.round + 1);
+  return rounds.length > 0 ? Math.min(...rounds) : state.phase === 'draft-complete' ? 6 : 1;
+}
+
+function allPlayersLocked(state: LobbyState): boolean {
+  const playerIds = state.participants.filter(isDraftingPlayer).map(({ id }) => id);
+  return (
+    playerIds.length > 0 &&
+    playerIds.every((participantId) => participantId in state.roundLocksByParticipantId)
+  );
+}
+
+function resolveDraftRound(state: LobbyState, context: LobbyCommandContext): LobbyState {
+  if (state.phase !== 'drafting') return state;
+  const playerIds = state.participants.filter(isDraftingPlayer).map(({ id }) => id);
+  const nextRuns = playerIds.map((participantId) => {
+    const persisted = state.draftsByParticipantId[participantId];
+    if (!persisted) throw new LobbyStateError('invalid_state', 'A player draft is missing.');
+    const draft = restoreDraftingRun(context.snapshot, persisted);
+    const selection = state.roundLocksByParticipantId[participantId];
+    return selection
+      ? lockSelection(context.snapshot, draft, selection, context.random)
+      : lockSelection(
+          context.snapshot,
+          draft,
+          chooseRandomSelection(draft, context.random),
+          context.random,
+        );
+  });
+
+  if (nextRuns.every((run) => run.status === 'complete')) {
+    const completedRunsByParticipantId = Object.fromEntries(
+      playerIds.map((participantId, index) => {
+        const run = nextRuns[index];
+        if (!run || run.status !== 'complete') {
+          throw new LobbyStateError('invalid_state', 'A completed player draft is missing.');
+        }
+        return [participantId, serializeCompletion(run.completion)];
+      }),
+    ) as LobbyState['completedRunsByParticipantId'];
+    return touchState(
+      {
+        ...state,
+        phase: 'draft-complete',
+        draftsByParticipantId: {},
+        roundLocksByParticipantId: {},
+        completedRunsByParticipantId,
+        deadlineAt: null,
+      },
+      context.now,
+    );
+  }
+
+  const draftingRuns = nextRuns.filter((run) => run.status === 'drafting');
+  if (draftingRuns.length !== playerIds.length) {
+    throw new LobbyStateError('invalid_state', 'Only some player drafts advanced.');
+  }
+  let nextDrafts = Object.fromEntries(
+    playerIds.map((participantId, index) => {
+      const run = draftingRuns[index];
+      if (!run) throw new LobbyStateError('invalid_state', 'A player draft is missing.');
+      return [participantId, PersistedDraftingRunSchema.parse(serializeDraftingRun(run))];
+    }),
+  ) as LobbyState['draftsByParticipantId'];
+
+  if (state.settings.mode === 'same') {
+    const sharedOffers = generateSharedOffers(context.snapshot, draftingRuns, context.random);
+    nextDrafts = Object.fromEntries(
+      playerIds.map((participantId, index) => {
+        const run = draftingRuns[index];
+        const offer = sharedOffers[index];
+        if (!run || !offer) {
+          throw new LobbyStateError('offer_generation_failed', 'The shared offer was incomplete.');
+        }
+        return [
+          participantId,
+          PersistedDraftingRunSchema.parse(serializeDraftingRun({ ...run, offer })),
+        ];
+      }),
+    );
+  }
+
+  return touchState(
+    {
+      ...state,
+      draftsByParticipantId: nextDrafts,
+      roundLocksByParticipantId: {},
+      completedRunsByParticipantId: {},
+      deadlineAt: Math.floor(context.now) + LOBBY_SPEED_DURATIONS_MS[state.settings.speed],
+    },
+    context.now,
+  );
+}
+
+function serializeCompletion(
+  completion: Completion,
+): LobbyState['completedRunsByParticipantId'][string] {
+  return {
+    snapshotVersion: completion.snapshotVersion,
+    build: {
+      body: { ...completion.build.body },
+      q: { ...completion.build.q },
+      w: { ...completion.build.w },
+      e: { ...completion.build.e },
+      r: { ...completion.build.r },
+      passive: { ...completion.build.passive },
+    },
+    picks: completion.picks.map((pick) => ({ ...pick })),
+  };
 }
 
 export function isLobbyExpired(state: LobbyState, now: number): boolean {

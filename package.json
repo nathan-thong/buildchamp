@@ -34,6 +34,7 @@
     "deploy:production": "pnpm run check:release-gate -- production && pnpm run build:cloudflare && wrangler deploy"
   },
   "dependencies": {
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "zod": "^3.25.76"

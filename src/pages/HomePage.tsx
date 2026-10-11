@@ -14,11 +14,15 @@ export function HomePage() {
             <span>own champion.</span>
           </h1>
           <p className="home-hero__lede">
-            Six random champions. Take one part from each. Every pick is permanent.
+            Six random champions. Take one part from each. Draft solo or bring friends into a
+            private room.
           </p>
           <div className="home-hero__actions">
             <AppLink className="button button--primary" href="/solo">
               Start solo draft <span aria-hidden="true">↗</span>
+            </AppLink>
+            <AppLink className="button button--secondary" href="/lobby">
+              Create or join a room
             </AppLink>
             <a className="home-hero__secondary" href="#how-it-works">
               Rules <span aria-hidden="true">↓</span>

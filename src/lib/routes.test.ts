@@ -7,6 +7,9 @@ describe('parseRoute', () => {
     expect(parseRoute('/')).toEqual({ kind: 'home' });
     expect(parseRoute('/solo')).toEqual({ kind: 'solo' });
     expect(parseRoute('/solo/')).toEqual({ kind: 'solo' });
+    expect(parseRoute('/lobby')).toEqual({ kind: 'lobby' });
+    expect(parseRoute('/room/abc234')).toEqual({ kind: 'room', roomCode: 'ABC234' });
+    expect(parseRoute('/display/abc234')).toEqual({ kind: 'display', roomCode: 'ABC234' });
   });
 
   it('keeps the result payload opaque while decoding URL-safe segments', () => {
@@ -20,6 +23,7 @@ describe('parseRoute', () => {
   it('falls back to not-found for unknown paths and incomplete result routes', () => {
     expect(parseRoute('/build/')).toEqual({ kind: 'not-found' });
     expect(parseRoute('/settings')).toEqual({ kind: 'not-found' });
+    expect(parseRoute('/room/OOOOOO')).toEqual({ kind: 'not-found' });
     expect(parseRoute('/build/demo/extra')).toEqual({ kind: 'not-found' });
   });
 });

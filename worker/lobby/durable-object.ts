@@ -6,6 +6,8 @@ import {
   CreateLobbyRequestSchema,
   CreateResultSchema,
   JoinLobbyRequestSchema,
+  LOBBY_PROTOCOL_VERSION,
+  LOBBY_STATE_VERSION,
   LobbyStateSchema,
   PublicRoomInfoSchema,
   ServerEventSchema,
@@ -16,6 +18,7 @@ import {
 } from './schemas.ts';
 import {
   addLobbyParticipant,
+  advanceExpiredDraftRound,
   connectLobbyParticipant,
   createLobbyState,
   disconnectLobbyParticipant,
@@ -27,7 +30,7 @@ import {
 } from './state.ts';
 import { ClientCommandSchema } from './schemas.ts';
 
-const STATE_KEY = 'lobby-state-v1';
+const STATE_KEY = 'lobby-state-v2';
 const MAX_COMMAND_BYTES = 4 * 1024;
 const COMMAND_WINDOW_MS = 10_000;
 const MAX_COMMANDS_PER_WINDOW = 24;
@@ -62,14 +65,21 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
 
   async alarm(): Promise<void> {
     await this.serialize(async () => {
-      const state = await this.readState();
+      const storedState = await this.readState();
+      const state = storedState ? await this.persistDeadlineIfNeeded(storedState) : null;
       if (!state) return;
       if (isLobbyExpired(state, Date.now())) {
         this.closeAllSockets(1001, 'Room expired.');
         await this.ctx.storage.deleteAll();
         return;
       }
-      await this.ctx.storage.setAlarm(state.expiresAt);
+      const settled = this.advanceDeadline(state, Date.now());
+      if (settled !== state) {
+        await this.saveState(settled);
+        this.broadcastSnapshots(settled);
+      } else {
+        await this.scheduleNextAlarm(state);
+      }
     });
   }
 
@@ -107,7 +117,8 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
         return;
       }
 
-      const state = await this.readState();
+      const storedState = await this.readState();
+      const state = storedState ? await this.persistDeadlineIfNeeded(storedState) : null;
       if (!state) {
         ws.close(1008, 'Room expired.');
         return;
@@ -157,15 +168,16 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
     const attachment = readAttachment(ws);
     if (!attachment) return;
     await this.serialize(async () => {
-      const state = await this.readState();
-      if (!state) return;
+      const storedState = await this.readState();
+      if (!storedState) return;
+      const state = this.advanceDeadline(storedState, Date.now());
       const nextState = disconnectLobbyParticipant(
         state,
         attachment.participantId,
         attachment.connectionId,
         Date.now(),
       );
-      if (nextState === state) return;
+      if (nextState === storedState) return;
       await this.saveState(nextState);
       this.broadcastSnapshots(nextState);
     });
@@ -193,7 +205,7 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
       }
       await this.saveState(state);
       const result = CreateResultSchema.parse({
-        protocolVersion: 1,
+        protocolVersion: LOBBY_PROTOCOL_VERSION,
         roomCode: state.roomCode,
         participantId: state.hostParticipantId,
         nickname: state.participants[0]?.nickname,
@@ -206,11 +218,12 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
 
   private async roomInfo(): Promise<Response> {
     return this.serialize(async () => {
-      const state = await this.readState();
+      const storedState = await this.readState();
+      const state = storedState ? await this.persistDeadlineIfNeeded(storedState) : null;
       if (!state) return jsonResponse({ error: 'room_not_found', message: 'Room not found.' }, 404);
 
       const info = PublicRoomInfoSchema.parse({
-        protocolVersion: 1,
+        protocolVersion: LOBBY_PROTOCOL_VERSION,
         roomCode: state.roomCode,
         phase: state.phase,
         mode: state.settings.mode,
@@ -234,13 +247,14 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
     if (!parsed.success) return invalidBodyResponse();
 
     return this.serialize(async () => {
-      const state = await this.readState();
+      const storedState = await this.readState();
+      const state = storedState ? await this.persistDeadlineIfNeeded(storedState) : null;
       if (!state) return jsonResponse({ error: 'room_not_found', message: 'Room not found.' }, 404);
       try {
         const joined = addLobbyParticipant(state, parsed.data);
         await this.saveState(joined.state);
         const result = AddParticipantResultSchema.parse({
-          protocolVersion: 1,
+          protocolVersion: LOBBY_PROTOCOL_VERSION,
           participantId: joined.participant.id,
           role: joined.participant.role,
           nickname: joined.participant.nickname,
@@ -273,7 +287,8 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
     const tokenHash = await hashToken(credentials.token);
 
     return this.serialize(async () => {
-      const state = await this.readState();
+      const storedState = await this.readState();
+      const state = storedState ? await this.persistDeadlineIfNeeded(storedState) : null;
       if (!state)
         return jsonResponse(
           { error: 'room_not_found', message: 'Room not found or expired.' },
@@ -301,7 +316,7 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
       const client = pair[0];
       const server = pair[1];
       const attachment = WebSocketAttachmentSchema.parse({
-        schemaVersion: 1,
+        schemaVersion: LOBBY_STATE_VERSION,
         participantId: participant.id,
         connectionId,
       });
@@ -330,7 +345,7 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
         status: 101,
         webSocket: client,
         headers: {
-          'Sec-WebSocket-Protocol': 'buildchamp.v1',
+          'Sec-WebSocket-Protocol': 'buildchamp.v2',
           'Cache-Control': 'no-store',
           'X-Content-Type-Options': 'nosniff',
           'Referrer-Policy': 'no-referrer',
@@ -362,7 +377,29 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
   private async saveState(state: LobbyState): Promise<void> {
     const validated = LobbyStateSchema.parse(state);
     await this.ctx.storage.put(STATE_KEY, validated);
-    await this.ctx.storage.setAlarm(validated.expiresAt);
+    await this.scheduleNextAlarm(validated);
+  }
+
+  private advanceDeadline(state: LobbyState, now: number): LobbyState {
+    return advanceExpiredDraftRound(state, {
+      now,
+      snapshot: BUNDLED_CHAMPION_SNAPSHOT,
+      random: secureRandom,
+    });
+  }
+
+  private async persistDeadlineIfNeeded(state: LobbyState): Promise<LobbyState> {
+    const next = this.advanceDeadline(state, Date.now());
+    if (next === state) return state;
+    await this.saveState(next);
+    this.broadcastSnapshots(next);
+    return next;
+  }
+
+  private async scheduleNextAlarm(state: LobbyState): Promise<void> {
+    const nextAlarmAt =
+      state.deadlineAt === null ? state.expiresAt : Math.min(state.deadlineAt, state.expiresAt);
+    await this.ctx.storage.setAlarm(nextAlarmAt);
   }
 
   private broadcastSnapshots(state: LobbyState, exceptParticipantId?: string): void {
@@ -409,7 +446,7 @@ export class BuildChampLobby extends DurableObject<LobbyEnv> {
     revision = 1,
   ): void {
     const event = ServerEventSchema.parse({
-      protocolVersion: 1,
+      protocolVersion: LOBBY_PROTOCOL_VERSION,
       revision,
       type: 'lobby.error',
       payload: { ...(commandId ? { commandId } : {}), code, message: message.slice(0, 160) },
@@ -479,7 +516,7 @@ function parseSocketCredentials(
 ): { participantId: string; token: string } | null {
   if (!value) return null;
   const protocols = value.split(',').map((part) => part.trim());
-  if (!protocols.includes('buildchamp.v1')) return null;
+  if (!protocols.includes('buildchamp.v2')) return null;
   const participantId = protocols
     .find((part) => part.startsWith('participant.'))
     ?.slice('participant.'.length);
@@ -585,7 +622,7 @@ function mapLobbyError(error: unknown): {
 function jsonResponse(body: unknown, status = 200): Response {
   const responseBody =
     typeof body === 'object' && body !== null && 'error' in body
-      ? { protocolVersion: 1, ...body }
+      ? { protocolVersion: LOBBY_PROTOCOL_VERSION, ...body }
       : body;
   return new Response(JSON.stringify(responseBody), {
     status,

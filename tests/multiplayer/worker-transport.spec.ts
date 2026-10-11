@@ -27,7 +27,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     const createResponse = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ protocolVersion: 1, nickname: 'Host One' }),
+      body: JSON.stringify({ protocolVersion: 2, nickname: 'Host One' }),
     });
     const hostJoin = (await createResponse.json()) as Join & { roomCode: string; role: string };
     if (!createResponse.ok) throw new Error(`Room create failed with ${createResponse.status}.`);
@@ -39,7 +39,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     const joinResponse = await fetch(`/api/rooms/${hostJoin.roomCode}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ protocolVersion: 1, nickname: 'Player Two', role: 'player' }),
+      body: JSON.stringify({ protocolVersion: 2, nickname: 'Player Two', role: 'player' }),
     });
     const playerJoin = (await joinResponse.json()) as Join & { role: string };
     if (!joinResponse.ok) throw new Error(`Join failed with ${joinResponse.status}.`);
@@ -48,7 +48,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     const displayResponse = await fetch(`/api/rooms/${hostJoin.roomCode}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ protocolVersion: 1, role: 'display' }),
+      body: JSON.stringify({ protocolVersion: 2, role: 'display' }),
     });
     const displayJoin = (await displayResponse.json()) as Join & { role: string };
     if (!displayResponse.ok) throw new Error(`Display join failed with ${displayResponse.status}.`);
@@ -73,7 +73,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     const escalationId = 'player-settings-attack';
     player.socket.send(
       JSON.stringify({
-        protocolVersion: 1,
+        protocolVersion: 2,
         commandId: escalationId,
         roomRevision: escalationRevision,
         type: 'host.settings',
@@ -93,7 +93,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     );
 
     const malformedSequence = player.latestSequence();
-    player.socket.send(JSON.stringify({ protocolVersion: 1, type: 'host.start' }));
+    player.socket.send(JSON.stringify({ protocolVersion: 2, type: 'host.start' }));
     const malformed = await player.waitFor(
       (event) => event.type === 'lobby.error' && event.payload.code === 'invalid_command',
       malformedSequence,
@@ -119,7 +119,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
     const duplicateSequence = player.latestSequence();
     player.socket.send(
       JSON.stringify({
-        protocolVersion: 1,
+        protocolVersion: 2,
         commandId: 'player-ready',
         roomRevision: playerReady.revision - 1,
         type: 'player.ready',
@@ -241,7 +241,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
       const socketUrl = new URL(join.socketPath, location.href);
       socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       const socket = new WebSocket(socketUrl, [
-        'buildchamp.v1',
+        'buildchamp.v2',
         `participant.${join.participantId}`,
         `token.${join.reconnectToken}`,
       ]);
@@ -299,7 +299,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
           { once: true },
         );
       });
-      if (socket.protocol !== 'buildchamp.v1')
+      if (socket.protocol !== 'buildchamp.v2')
         throw new Error('Server negotiated an unexpected WebSocket protocol.');
       return client;
     }
@@ -308,7 +308,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
       const socketUrl = new URL(join.socketPath, location.href);
       socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       const socket = new WebSocket(socketUrl, [
-        'buildchamp.v1',
+        'buildchamp.v2',
         `participant.${join.participantId}`,
         `token.${join.reconnectToken}`,
       ]);
@@ -350,7 +350,7 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
       },
     ): Promise<Envelope> {
       const sequence = client.latestSequence();
-      client.socket.send(JSON.stringify({ protocolVersion: 1, ...command }));
+      client.socket.send(JSON.stringify({ protocolVersion: 2, ...command }));
       const ack = await client.waitFor(
         (event) => event.type === 'command.ack' && event.payload.commandId === command.commandId,
         sequence,
@@ -373,8 +373,8 @@ test('local Durable Object authorizes, persists, projects and reconnects lobby s
   expect(result.rateLimitCode).toBe('rate_limited');
   expect(result.duplicate).toBe(true);
   expect(result.draftingPhase).toBe('drafting');
-  expect(result.protocolVersion).toBe(1);
-  expect(result.infoProtocolVersion).toBe(1);
+  expect(result.protocolVersion).toBe(2);
+  expect(result.infoProtocolVersion).toBe(2);
   expect(result.roleScopedOffers).toBe(true);
   expect(result.displayOnlySeesChampionIdentity).toBe(true);
   expect(result.privateTokenAbsent).toBe(true);
@@ -388,7 +388,7 @@ test('room API rejects cross-origin, malformed and oversized HTTP requests', asy
 }) => {
   const crossOrigin = await request.post('http://127.0.0.1:4175/api/rooms', {
     headers: { Origin: 'https://example.invalid', 'Content-Type': 'application/json' },
-    data: { protocolVersion: 1, nickname: 'A Host' },
+    data: { protocolVersion: 2, nickname: 'A Host' },
   });
   expect(crossOrigin.status()).toBe(403);
 
@@ -400,7 +400,7 @@ test('room API rejects cross-origin, malformed and oversized HTTP requests', asy
 
   const oversized = await request.post('http://127.0.0.1:4175/api/rooms', {
     headers: { 'Content-Type': 'application/json' },
-    data: JSON.stringify({ protocolVersion: 1, nickname: 'A'.repeat(5000) }),
+    data: JSON.stringify({ protocolVersion: 2, nickname: 'A'.repeat(5000) }),
   });
   expect(oversized.status()).toBe(400);
 });

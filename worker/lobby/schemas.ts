@@ -3,15 +3,22 @@ import { z } from 'zod';
 import { SlotSchema, AvailabilitySchema, BodyStatsSchema } from '../../src/data/snapshot-schema.ts';
 import { PersistedDraftingRunSchema } from '../../src/lib/solo-run-storage.ts';
 
-export const LOBBY_PROTOCOL_VERSION = 1 as const;
-export const LOBBY_STATE_VERSION = 1 as const;
+export const LOBBY_PROTOCOL_VERSION = 2 as const;
+export const LOBBY_STATE_VERSION = 2 as const;
 export const LOBBY_EXPIRY_MS = 60 * 60 * 1000;
 export const MAX_RECENT_COMMANDS = 128;
 
 export const LobbyRoleSchema = z.enum(['host', 'player', 'spectator', 'display']);
 export type LobbyRole = z.infer<typeof LobbyRoleSchema>;
 
-export const LobbyPhaseSchema = z.enum(['waiting', 'drafting', 'revealing', 'voting', 'results']);
+export const LobbyPhaseSchema = z.enum([
+  'waiting',
+  'drafting',
+  'draft-complete',
+  'revealing',
+  'voting',
+  'results',
+]);
 export type LobbyPhase = z.infer<typeof LobbyPhaseSchema>;
 
 export const LobbyModeSchema = z.enum(['same', 'random']);
@@ -92,6 +99,35 @@ const RecentCommandSchema = z
   })
   .strict();
 
+export const LobbySelectionSchema = z
+  .object({
+    offerId: z.string().min(1).max(128),
+    championId: z.string().min(1).max(128),
+    variantId: z.string().min(1).max(128),
+    slot: SlotSchema,
+    componentId: z.string().min(1).max(128),
+  })
+  .strict();
+
+const CompletedBuildSchema = z
+  .object({
+    body: LobbySelectionSchema,
+    q: LobbySelectionSchema,
+    w: LobbySelectionSchema,
+    e: LobbySelectionSchema,
+    r: LobbySelectionSchema,
+    passive: LobbySelectionSchema,
+  })
+  .strict();
+
+const CompletedRunSchema = z
+  .object({
+    snapshotVersion: z.string().min(1),
+    build: CompletedBuildSchema,
+    picks: z.array(LobbySelectionSchema).length(6),
+  })
+  .strict();
+
 export const LobbyStateSchema = z
   .object({
     schemaVersion: z.literal(LOBBY_STATE_VERSION),
@@ -104,6 +140,9 @@ export const LobbyStateSchema = z
     participants: z.array(ParticipantSchema).max(29),
     settings: LobbySettingsSchema,
     draftsByParticipantId: z.record(PersistedDraftingRunSchema),
+    roundLocksByParticipantId: z.record(LobbySelectionSchema),
+    completedRunsByParticipantId: z.record(CompletedRunSchema),
+    deadlineAt: TimestampSchema.nullable(),
     recentCommands: z.array(RecentCommandSchema).max(MAX_RECENT_COMMANDS),
     createdAt: TimestampSchema,
     lastActivityAt: TimestampSchema,
@@ -168,11 +207,16 @@ export const LobbyStateSchema = z
     }
 
     const draftIds = Object.keys(state.draftsByParticipantId);
-    if (state.phase === 'waiting' && draftIds.length > 0) {
+    const lockIds = Object.keys(state.roundLocksByParticipantId);
+    const completedIds = Object.keys(state.completedRunsByParticipantId);
+    if (
+      state.phase === 'waiting' &&
+      (draftIds.length > 0 || lockIds.length > 0 || completedIds.length > 0)
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['draftsByParticipantId'],
-        message: 'Waiting lobbies cannot contain generated draft state.',
+        message: 'Waiting lobbies cannot contain generated draft or lock state.',
       });
     }
     for (const participantId of draftIds) {
@@ -185,11 +229,63 @@ export const LobbyStateSchema = z
         });
       }
     }
-    if (state.phase !== 'waiting' && state.phase !== 'drafting' && draftIds.length > 0) {
+    const playerIds = new Set(
+      state.participants
+        .filter((participant) => participant.role === 'host' || participant.role === 'player')
+        .map(({ id }) => id),
+    );
+    if (state.phase === 'drafting') {
+      if (
+        state.deadlineAt === null ||
+        draftIds.length !== playerIds.size ||
+        completedIds.length > 0
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['deadlineAt'],
+          message: 'Drafting rooms need one active draft per player and one round deadline.',
+        });
+      }
+      for (const participantId of lockIds) {
+        if (!playerIds.has(participantId)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['roundLocksByParticipantId', participantId],
+            message: 'Only drafting players may own a current-round lock.',
+          });
+        }
+      }
+    } else if (state.phase === 'draft-complete') {
+      if (
+        state.deadlineAt !== null ||
+        draftIds.length > 0 ||
+        lockIds.length > 0 ||
+        completedIds.length !== playerIds.size ||
+        [...playerIds].some(
+          (participantId) => !(participantId in state.completedRunsByParticipantId),
+        )
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['completedRunsByParticipantId'],
+          message: 'Completed drafts must retain one private completion per player.',
+        });
+      }
+    } else if (
+      state.phase !== 'waiting' &&
+      (draftIds.length > 0 || lockIds.length > 0 || completedIds.length > 0)
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['draftsByParticipantId'],
         message: 'Draft state is retained only while drafting in this slice.',
+      });
+    }
+    if (state.phase !== 'drafting' && state.deadlineAt !== null) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['deadlineAt'],
+        message: 'Only drafting rooms may hold a round deadline.',
       });
     }
   });
@@ -205,6 +301,15 @@ export const ClientCommandSchema = z.discriminatedUnion('type', [
   ClientCommandBase.extend({
     type: z.literal('player.ready'),
     payload: z.object({ ready: z.boolean() }).strict(),
+  }).strict(),
+  ClientCommandBase.extend({
+    type: z.literal('player.lock'),
+    payload: z
+      .object({
+        round: z.number().int().min(1).max(6),
+        selection: LobbySelectionSchema,
+      })
+      .strict(),
   }).strict(),
   ClientCommandBase.extend({
     type: z.literal('host.settings'),
@@ -310,6 +415,7 @@ export const ParticipantProjectionSchema = z
     role: LobbyRoleSchema,
     ready: z.boolean(),
     isConnected: z.boolean(),
+    lockedThisRound: z.boolean(),
   })
   .strict();
 
@@ -409,6 +515,9 @@ export const LobbyProjectionSchema = z
     settings: LobbySettingsSchema,
     participants: z.array(ParticipantProjectionSchema).max(29),
     expiresAt: TimestampSchema,
+    deadlineAt: TimestampSchema.nullable(),
+    lockedCount: z.number().int().min(0).max(8),
+    playerCount: z.number().int().min(1).max(8),
     currentRound: z.number().int().min(1).max(6).optional(),
     offer: z.union([OfferProjectionSchema, PublicOfferIdentitySchema]).optional(),
     offersByPlayer: z.array(PlayerOfferProjectionSchema).max(8).optional(),
@@ -457,6 +566,8 @@ export const ServerEventSchema = z.discriminatedUnion('type', [
             'unsupported_command',
             'rate_limited',
             'offer_generation_failed',
+            'already_locked',
+            'offer_mismatch',
           ]),
           message: z.string().min(1).max(160),
         })
@@ -475,7 +586,7 @@ export const WebSocketAttachmentSchema = z
   .strict();
 export type WebSocketAttachment = z.infer<typeof WebSocketAttachmentSchema>;
 
-export const SocketProtocolSchema = z.literal('buildchamp.v1');
+export const SocketProtocolSchema = z.literal('buildchamp.v2');
 
 export const LobbyStartResultSchema = z
   .object({ revision: z.number().int().positive(), phase: z.literal('drafting') })

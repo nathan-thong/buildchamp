@@ -39,34 +39,67 @@ error state, and 404 page. A browser smoke check on 2026-09-28 confirmed the liv
 loads `/`, `/solo`, `/build/demo`, and a valid versioned `/build/:payload` result directly, but
 still has the earlier short footer wording and returns the custom 404 for `/service-worker.js`.
 HTTP verification on 2026-10-09 supersedes that deployment observation: `/service-worker.js`
-returns 200 and the live JavaScript exactly matches the current local build, including the corrected
-notices and offline shell. Local verification on 2026-10-10 passed typecheck, lint, format, 99 unit
-tests, Vite build, Cloudflare artifact check, and all 40 Chromium/WebKit browser tests. Three
-additional local Wrangler/SQLite Durable Object tests passed, including reconnect and versioned-state
-restoration after restarting the local Worker; a preview Worker deploy dry-run also passed. No public
-deployment or release gate change occurred.
+returns 200 and the live JavaScript matched the then-current local build, including the corrected
+notices and offline shell. Local verification on 2026-10-11 passed typecheck, lint, format, 109 unit
+tests, production build, Cloudflare artifact checks, Wrangler dry-run, all 40 Chromium/WebKit browser
+tests, and all 5 local Wrangler/SQLite multiplayer tests. The multiplayer suite covers both six-round
+modes, concurrent locks, reconnect and deadline handling, alarm autopick, role privacy, and SQLite
+restoration after Worker restart. The one-hour inactivity cleanup is unit-tested but was not run
+end-to-end. The local client has since changed; no public deployment or release-gate change occurred.
 
-Policy and asset review updated 2026-10-09. Riot's [General Policies](https://support-developer.riotgames.com/hc/en-us/articles/22698591841939-General-Policies)
-(updated 2025-05-29) says not to develop games using Riot IP, while also allowing completely free
-fan celebrations built around original ideas. Riot's [Legal Jibber Jabber](https://www.riotgames.com/en/legal)
-(last updated 2018-08) describes a limited non-commercial fan-project license but separately says
-not to use Riot IP such as character appearances, abilities, or icons in a game or app. Riot's
-[League policy](https://support-developer.riotgames.com/hc/en-us/articles/22698698001939-League-of-Legends)
-(updated 2025-03-11) requires registration for player-facing products regardless of API use and
-describes Data Dragon game data and assets as available to third-party developers. These published
-rules leave an unresolved question for this particular free, original browser party game; this review
-does not conclude that it is eligible or ineligible. The maintainer reports Developer Portal approval
-on 2026-09-28, but no approval record or product-specific policy response is available in this
-repository, so registration and policy eligibility are not independently evidenced here.
+Policy and asset review refreshed 2026-10-11. Riot's [General Policies](https://support-developer.riotgames.com/hc/en-us/articles/22698591841939-General-Policies)
+(updated 2025-05-29) says not to develop games utilizing Riot IP, describes that as including
+simulators, recreations, and games difficult to distinguish from official Riot games, and expressly
+allows completely free fan celebrations built around unique, original ideas. The page also requires
+product registration and audit, and says new features or product changes must be audited through the
+product page. Riot's [Legal Jibber Jabber](https://www.riotgames.com/en/legal) (last updated 2018-08)
+describes a limited non-commercial fan-project license but separately prohibits unauthorized games
+and apps using Riot IP such as character appearances, abilities, or icons. Riot's [League policy](https://support-developer.riotgames.com/hc/en-us/articles/22698698001939-League-of-Legends)
+says player-facing products must be registered regardless of API use and describes Data Dragon game
+data and assets as available to third-party developers. The published texts do not define how the
+free/original fan-celebration allowance applies to this browser party game; this review makes no
+eligibility conclusion. The maintainer reports Developer Portal approval on 2026-09-28. No portal
+record is available in this workspace to verify the approved scope, conditions, or whether later
+Slice 9–10 features and the CommunityDragon sources were included in an audit. No new registration
+is being requested; the retained product audit record is needed to resolve that scope question.
 
-The 16.17.1 snapshot contains 38 unique image URLs hosted by
-[CommunityDragon](https://communitydragon.org/documentation/assets): 36 transformed ability icons
-(Elise 6, Gnar 8, Jayce 6, Kayn 10, Nidalee 6) and Fiddlesticks default splash and loading art (2).
-The references are version-scoped under `/16.17/`. CommunityDragon's asset documentation describes
-files exported from game and client paths; its public asset documentation is a source-provenance
-reference, not Riot authorization. Riot's reviewed policy pages name Data Dragon, Press Kit, and other
-game-specific asset sets, but do not name CommunityDragon. The provenance inventory is complete;
-Riot eligibility for these 38 references remains unconfirmed. Public examples such as
+The complete image-reference inventory across both retained snapshots is:
+
+- `15.17.1`: 171 champions, 1,539 image references and 1,363 unique URLs; all are Data Dragon.
+- `16.17.1`: 173 champions, 1,581 image references and 1,397 unique URLs; 1,359 are Data Dragon
+  and 38 are hosted by [CommunityDragon](https://communitydragon.org/documentation/assets).
+- The 38 CommunityDragon image references are 36 form-specific ability icons (Elise 6, Gnar 8,
+  Jayce 6, Kayn 10, Nidalee 6) and two Fiddlesticks base-skin splash/loading images. The current
+  snapshot contains default champion art only; no skins or community-uploaded images are used.
+  These image URLs are scoped to CommunityDragon's `16.17` asset export. All 38 returned HTTP 200
+  in a HEAD check on 2026-10-11 (36 PNG, 2 JPEG). The ten version-scoped CommunityDragon champion
+  game-data JSON sources referenced by the compatibility manifest also returned HTTP 200; these are
+  build-time inputs for reviewed form data, not additional runtime image URLs.
+
+CommunityDragon's [asset documentation](https://communitydragon.org/documentation/assets) and
+[export tool repository](https://github.com/CommunityDragon/CDTB) describe Riot game/client files
+being extracted and exported to its host. They establish provenance and availability, not reuse
+authorization. The Riot policy pages reviewed name Data Dragon, Press Kit, and game-specific asset
+sets, but do not name CommunityDragon or explicitly authorize its mirrors/extraction. Riot's
+[Data Dragon documentation](https://developer.riotgames.com/docs/lol) documents the standard
+champion spell/passive image fields. The importer has Data Dragon fallback icons for the 36 custom
+form icons: 18 distinct standard icons, shared across variants, would be available but would lose
+the current form-specific distinctions. All 25 standard spell/passive image URLs for those five
+champions returned HTTP 200 in a bounded check on 2026-10-11. Data Dragon's Fiddlesticks default
+splash and loading URLs also returned HTTP 200, but the checked-in source review records those as
+legacy pre-rework art; replacing the current base-skin art with them would change the presentation.
+These technically reachable alternatives do not establish an asset license for CommunityDragon.
+
+The current 16.17.1 Data Dragon splash/loading references use Riot's unversioned `/cdn/img/...`
+paths. Riot's documentation shows those unversioned paths for champion art. The retained 15.17.1
+snapshot instead contains versioned splash/loading URLs; eight sampled 15.17.1 URLs returned HTTP
+403 on GET, while current unversioned examples returned HTTP 200. This is a historical image-path
+availability limitation, not a policy finding; no generated snapshot was rewritten during this
+review. Runtime notices are present on the app shell, shared-display route, fatal-error state, SPA
+404, and standalone `public/404.html`. The generated PNG card uses a shortened “Unofficial fan
+project · Not endorsed by Riot Games” footer; the full notices remain on the linked product page.
+The reviewed Riot materials require conspicuous product/project notices but do not say that each
+exported card must repeat the full boilerplate. Public examples such as
 [Champdle](https://www.champdle.com/about) and
 [LoLdle](https://apps.apple.com/us/app/loldle-official/id6449491946) do not establish BuildChamp's
 registration or asset eligibility. No gameplay redesign is indicated by this source review.
@@ -75,12 +108,15 @@ registration or asset eligibility. No gameplay redesign is indicated by this sou
 
 - [x] Assess BuildChamp against Riot Games' then-current game/IP policy and record the rationale
       for its free, original drafting game.
-- [ ] Verify Riot Developer Portal product registration and retain its approval record; the
-      maintainer reports the product is listed as approved (2026-09-28), but no evidence is in this
-      repository.
+- [ ] Retain the Riot Developer Portal product approval/audit record and its scope or conditions;
+      the maintainer reports approval dated 2026-09-28, but the record is not in this repository.
+      Confirm the audited product scope includes the current Slice 9–10 features and whether the
+      CommunityDragon image/data sources were disclosed. No new registration is requested.
 - [ ] Confirm the release uses only approved default champion data, icons, and artwork; no skins,
       community-uploaded imagery, or unreviewed assets are included.
-- [x] Confirm every player-visible surface includes the required Riot non-endorsement notice.
+- [x] Confirm every player-facing application page and error surface includes the required Riot
+      non-endorsement notice. The generated PNG card has a shortened non-endorsement footer; the
+      reviewed policy does not specify that each exported card repeat the full notice.
 - [x] If Riot assets are shipped, include the applicable Legal Jibber Jabber notice and verify its
       placement is conspicuous and readable.
 - [x] Confirm the product does not imply Riot sponsorship, endorsement, operation, or affiliation.
