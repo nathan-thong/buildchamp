@@ -104,7 +104,10 @@ not a paper ticket, stat dashboard, or imitation of the League client.
 
 The atmosphere is low-light and focused. Deep blue surfaces establish the play space, warm gold
 marks a decision, and teal marks active or confirmed state. Headings use a stable grotesk face with
-weight and scale doing the expressive work; copy describes the action plainly.
+weight and scale doing the expressive work; copy describes the action plainly. The same board
+language now supports private rooms: entry and waiting screens, synchronized drafts, public reveals,
+secret voting, and results. The shared display is a read-only view with its own room-code and QR
+header.
 
 **Key Characteristics:**
 
@@ -112,6 +115,7 @@ weight and scale doing the expressive work; copy describes the action plainly.
 - League-inspired navy, parchment, gold, and teal palette without Riot or League branding.
 - Helvetica Neue display headings with Avenir Next body copy and sparse measurement mono.
 - Six-slot strips and cards that keep Body, Q, W, E, R, and Passive visible in order.
+- Home, Solo, Rooms, participant, and shared-display screens use the same dark surfaces and clear state hierarchy.
 
 ## Colors
 
@@ -179,8 +183,13 @@ Draft and result routes reuse the same large heading, round rail, reveal field, 
 At `1120px` the draft board gives the choice area two columns and keeps the build reference narrower;
 at `960px` it stacks in reading order as offer, build, choices. Narrow drafts use a compact three-column
 build strip with an explicit expand control, while full build details use two columns below `640px`.
-At `640px` the header navigation yields to the mark and sound control. Home board slots move from six to
-three columns on narrow screens; choice and result grids move from three to two and then one column.
+Room entry forms use two columns on wide screens and stack at `640px`. Participant and shared-display
+phase panels share a heading, deadline/progress area, and build-card grid; build cards collapse to one
+column below `760px`, and phase headings stack below `540px`. The shared display header places the room
+code and QR beside the current phase until the layout stacks at `640px`. At `640px` the site navigation
+hides while the active-room banner remains, wrapping its return/leave controls for narrow screens.
+Home board slots move from six to three columns on narrow screens; choice and result grids move from
+three to two and then one column.
 
 ## Elevation & Depth
 
@@ -230,12 +239,26 @@ cutouts.
 - **Lock bar:** The selection summary and one explicit permanent-lock action stay reachable while browsing.
   Before selection it gives a concise disabled instruction; after selection it names the slot, source,
   component, and permanence warning.
+- **Room phase panel:** A compact phase heading pairs plain-language state with the synchronized
+  deadline or progress. Draft offers and completed-build cards use the same slot labels and image
+  treatment as solo results.
+- **Room entry:** Create and join forms use open two-column spacing, direct field labels, and high-contrast
+  room-code entry; the columns stack on narrow screens.
 
 ### Navigation
 
-The header is a quiet board bar with the original BuildChamp mark, two routes, and a persistent sound
-control. Active navigation uses gold trim. On narrow screens, route links hide to protect the brand and
-sound control.
+The header is a quiet board bar with the original BuildChamp mark, Home, Solo draft, and Rooms routes,
+and a persistent sound control. Rooms is active on both lobby entry and an open room. A persistent
+active-room banner shows the room code and connection state, with Return and explicit Leave actions
+while another route is open. Active navigation uses gold trim. On narrow screens, route links hide to
+protect the mark and sound control; the active-room banner stays visible and wraps its actions.
+
+### Shared Display
+
+The shared display hides the player navigation and controls. Its header pairs the current room phase
+with a large room code and QR join card. Waiting, drafting, reveal, voting, and results use the same
+phase-panel and build-card language as participant screens, with only role-appropriate public progress
+and completed builds shown.
 
 ### Reveal Field
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-07T22:00:20+10:00",
+  "generatedAt": "2026-10-12T02:22:52+11:00",
   "title": "Design System: BuildChamp",
   "extensions": {
     "colorMeta": {
@@ -8,79 +8,196 @@
         "role": "neutral",
         "displayName": "Board Canvas",
         "canonical": "#070d16",
-        "tonalRamp": ["#070d16", "#0a111b", "#0d1825", "#13283b", "#1b3a52", "#294c63", "#3c6074", "#678396"]
+        "tonalRamp": [
+          "#070d16",
+          "#0a111b",
+          "#0d1825",
+          "#13283b",
+          "#1b3a52",
+          "#294c63",
+          "#3c6074",
+          "#678396"
+        ]
       },
       "surface": {
         "role": "neutral",
         "displayName": "Board Surface",
         "canonical": "#0d1825",
-        "tonalRamp": ["#070d16", "#0d1825", "#13283b", "#1b3a52", "#28485f", "#41647a", "#6b8799", "#a4b5c0"]
+        "tonalRamp": [
+          "#070d16",
+          "#0d1825",
+          "#13283b",
+          "#1b3a52",
+          "#28485f",
+          "#41647a",
+          "#6b8799",
+          "#a4b5c0"
+        ]
       },
       "surface-raised": {
         "role": "neutral",
         "displayName": "Raised Surface",
         "canonical": "#13283b",
-        "tonalRamp": ["#0a111b", "#0d1825", "#13283b", "#1b3a52", "#2a4b61", "#47697e", "#7893a3", "#afbec7"]
+        "tonalRamp": [
+          "#0a111b",
+          "#0d1825",
+          "#13283b",
+          "#1b3a52",
+          "#2a4b61",
+          "#47697e",
+          "#7893a3",
+          "#afbec7"
+        ]
       },
       "surface-soft": {
         "role": "neutral",
         "displayName": "Soft Surface",
         "canonical": "#1b3a52",
-        "tonalRamp": ["#0d1825", "#13283b", "#1b3a52", "#294c63", "#3c6074", "#607f90", "#8fa7b4", "#c2d0d5"]
+        "tonalRamp": [
+          "#0d1825",
+          "#13283b",
+          "#1b3a52",
+          "#294c63",
+          "#3c6074",
+          "#607f90",
+          "#8fa7b4",
+          "#c2d0d5"
+        ]
       },
       "paper": {
         "role": "neutral",
         "displayName": "Parchment Paper",
         "canonical": "#f0e6d2",
-        "tonalRamp": ["#5b554b", "#827a6c", "#aaa08e", "#c1b7a3", "#d1c6b2", "#e0d5c1", "#f0e6d2", "#fff7e8"]
+        "tonalRamp": [
+          "#5b554b",
+          "#827a6c",
+          "#aaa08e",
+          "#c1b7a3",
+          "#d1c6b2",
+          "#e0d5c1",
+          "#f0e6d2",
+          "#fff7e8"
+        ]
       },
       "paper-muted": {
         "role": "neutral",
         "displayName": "Muted Paper",
         "canonical": "#c1bdaf",
-        "tonalRamp": ["#4c4c49", "#6b6b64", "#898980", "#a4a298", "#b1afa5", "#c1bdaf", "#d4d0c2", "#e8e2d2"]
+        "tonalRamp": [
+          "#4c4c49",
+          "#6b6b64",
+          "#898980",
+          "#a4a298",
+          "#b1afa5",
+          "#c1bdaf",
+          "#d4d0c2",
+          "#e8e2d2"
+        ]
       },
       "ink": {
         "role": "neutral",
         "displayName": "Deep Ink",
         "canonical": "#07111c",
-        "tonalRamp": ["#02060a", "#07111c", "#0d1825", "#13283b", "#1b3a52", "#294c63", "#3c6074", "#678396"]
+        "tonalRamp": [
+          "#02060a",
+          "#07111c",
+          "#0d1825",
+          "#13283b",
+          "#1b3a52",
+          "#294c63",
+          "#3c6074",
+          "#678396"
+        ]
       },
       "ink-muted": {
         "role": "neutral",
         "displayName": "Muted Ink",
         "canonical": "#7f91a4",
-        "tonalRamp": ["#28313b", "#3e4d5c", "#536576", "#687b8d", "#7f91a4", "#9aaab8", "#b9c5ce", "#d7dfe3"]
+        "tonalRamp": [
+          "#28313b",
+          "#3e4d5c",
+          "#536576",
+          "#687b8d",
+          "#7f91a4",
+          "#9aaab8",
+          "#b9c5ce",
+          "#d7dfe3"
+        ]
       },
       "gold": {
         "role": "primary",
         "displayName": "Decision Gold",
         "canonical": "#c8aa6e",
-        "tonalRamp": ["#4c402a", "#695735", "#80683f", "#9d8653", "#b69a62", "#c8aa6e", "#e0c17d", "#f4dea5"]
+        "tonalRamp": [
+          "#4c402a",
+          "#695735",
+          "#80683f",
+          "#9d8653",
+          "#b69a62",
+          "#c8aa6e",
+          "#e0c17d",
+          "#f4dea5"
+        ]
       },
       "gold-bright": {
         "role": "primary",
         "displayName": "Bright Gold",
         "canonical": "#e7c982",
-        "tonalRamp": ["#5d4c2d", "#80683f", "#a88a51", "#c8aa6e", "#d9ba76", "#e7c982", "#f1dca2", "#fff0c5"]
+        "tonalRamp": [
+          "#5d4c2d",
+          "#80683f",
+          "#a88a51",
+          "#c8aa6e",
+          "#d9ba76",
+          "#e7c982",
+          "#f1dca2",
+          "#fff0c5"
+        ]
       },
       "gold-deep": {
         "role": "primary",
         "displayName": "Deep Gold",
         "canonical": "#80683f",
-        "tonalRamp": ["#302616", "#4c402a", "#62502f", "#80683f", "#9d8653", "#b69a62", "#c8aa6e", "#e0c17d"]
+        "tonalRamp": [
+          "#302616",
+          "#4c402a",
+          "#62502f",
+          "#80683f",
+          "#9d8653",
+          "#b69a62",
+          "#c8aa6e",
+          "#e0c17d"
+        ]
       },
       "mint": {
         "role": "secondary",
         "displayName": "State Teal",
         "canonical": "#0ac8b9",
-        "tonalRamp": ["#063d3a", "#075d57", "#087d73", "#099d90", "#0ab2a4", "#0ac8b9", "#59ddd2", "#b1f1eb"]
+        "tonalRamp": [
+          "#063d3a",
+          "#075d57",
+          "#087d73",
+          "#099d90",
+          "#0ab2a4",
+          "#0ac8b9",
+          "#59ddd2",
+          "#b1f1eb"
+        ]
       },
       "blue": {
         "role": "secondary",
         "displayName": "Signal Blue",
         "canonical": "#0bc4e3",
-        "tonalRamp": ["#063541", "#07596a", "#087d91", "#099eb7", "#0bb0cc", "#0bc4e3", "#58d8eb", "#b2eff7"]
+        "tonalRamp": [
+          "#063541",
+          "#07596a",
+          "#087d91",
+          "#099eb7",
+          "#0bb0cc",
+          "#0bc4e3",
+          "#58d8eb",
+          "#b2eff7"
+        ]
       }
     },
     "typographyMeta": {
@@ -167,10 +284,22 @@
       }
     ],
     "breakpoints": [
-      { "name": "wide", "value": "1120px" },
-      { "name": "stack", "value": "960px" },
-      { "name": "narrow", "value": "640px" },
-      { "name": "micro", "value": "400px" }
+      {
+        "name": "wide",
+        "value": "1120px"
+      },
+      {
+        "name": "stack",
+        "value": "960px"
+      },
+      {
+        "name": "narrow",
+        "value": "640px"
+      },
+      {
+        "name": "micro",
+        "value": "400px"
+      }
     ]
   },
   "components": [
@@ -191,14 +320,6 @@
       "css": ".ds-button-secondary { min-height: 2.8rem; padding: .75rem 1rem; border: 1px solid rgba(240,230,210,.32); border-radius: .25rem; color: #f0e6d2; background: transparent; font: 700 .72rem/1 'Avenir Next', sans-serif; letter-spacing: .075em; text-transform: uppercase; transition: border-color 140ms ease, background 140ms ease; } .ds-button-secondary:hover { border-color: #0ac8b9; background: rgba(10,200,185,.08); } .ds-button-secondary:focus-visible { outline: 3px solid #e7c982; outline-offset: 4px; }"
     },
     {
-      "name": "Slot Card",
-      "kind": "card",
-      "refersTo": "slot-card",
-      "description": "One of the six visible claim locations, with explicit open, selected, and locked wording.",
-      "html": "<div class=\"ds-slot-card\"><span class=\"ds-slot-index\">01 / BODY</span><strong>OPEN</strong></div>",
-      "css": ".ds-slot-card { min-height: 10.75rem; padding: .7rem; border: 1px solid rgba(200,170,110,.5); border-radius: 0; color: #f0e6d2; background: #0d1825; } .ds-slot-card:hover { border-color: #e7c982; background: rgba(200,170,110,.08); } .ds-slot-card:focus-visible { outline: 3px solid #0ac8b9; outline-offset: 4px; }"
-    },
-    {
       "name": "Champion Board",
       "kind": "custom",
       "refersTo": "home-build-card",
@@ -210,9 +331,9 @@
       "name": "Site Navigation",
       "kind": "nav",
       "refersTo": "site-nav",
-      "description": "Quiet routes with an active gold trim.",
-      "html": "<nav class=\"ds-site-nav\"><a href=\"/solo\">SOLO DRAFT</a></nav>",
-      "css": ".ds-site-nav { display: flex; gap: .35rem; } .ds-site-nav a { padding: .8rem 1rem; border: 1px solid transparent; color: #7f91a4; font: 700 .68rem/1 'SFMono-Regular', monospace; letter-spacing: .08em; text-decoration: none; text-transform: uppercase; } .ds-site-nav a:hover, .ds-site-nav a:focus-visible { border-color: rgba(240,230,210,.32); color: #e7c982; box-shadow: inset 0 -2px 0 #e7c982; } .ds-site-nav a:focus-visible { outline: 3px solid #e7c982; outline-offset: 4px; }"
+      "description": "Home, Solo draft, and Rooms routes, with persistent room return and leave status beneath the header.",
+      "html": "<nav class=\"ds-site-nav\" aria-label=\"Primary navigation\"><a href=\"/\">HOME</a><a href=\"/solo\">SOLO DRAFT</a><a aria-current=\"page\" href=\"/lobby\">ROOMS</a></nav>",
+      "css": ".ds-site-nav { display: flex; align-items: center; gap: .25rem; } .ds-site-nav a { padding: .72rem .85rem; border: 1px solid transparent; border-radius: .25rem; color: #c1bdaf; font: 700 .67rem/1 'Avenir Next', sans-serif; letter-spacing: .08em; text-decoration: none; text-transform: uppercase; } .ds-site-nav a:hover, .ds-site-nav a[aria-current='page'] { border-color: rgba(240,230,210,.32); color: #e7c982; background: rgba(200,170,110,.05); box-shadow: inset 0 -2px 0 #e7c982; } .ds-site-nav a:focus-visible { outline: 3px solid #e7c982; outline-offset: 4px; } @media (max-width: 640px) { .ds-site-nav { display: none; } }"
     },
     {
       "name": "Component Choice Card",
@@ -245,16 +366,33 @@
       "description": "A labelled, scrollable disclosure for full ability or Body details, closed by Escape, backdrop, or the explicit Close control.",
       "html": "<dialog open class=\"ds-details-dialog\"><div class=\"ds-details-dialog__surface\"><header><div><span>FULL DETAILS</span><h2>Example Component</h2></div><button class=\"ds-details-dialog__close\" type=\"button\">CLOSE</button></header><p>Full component description and portable mechanics appear here without changing the draft.</p></div></dialog>",
       "css": ".ds-details-dialog { width: min(calc(100vw - 2rem),46rem); max-width: calc(100vw - 2rem); max-height: calc(100vh - 2rem); padding: 0; border: 1px solid rgba(200,170,110,.42); border-top-color: #0ac8b9; color: #f0e6d2; background: #13283b; box-shadow: 0 1.5rem 3rem rgba(0,0,0,.28); overflow: hidden; } .ds-details-dialog::backdrop { background: rgba(3,8,15,.78); } .ds-details-dialog__surface { max-height: calc(100vh - 2rem); overflow-y: auto; padding: clamp(1rem,3vw,1.5rem); } .ds-details-dialog header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding-bottom: .8rem; border-bottom: 1px solid rgba(240,230,210,.15); } .ds-details-dialog header span { color: #7f91a4; font: 700 .6875rem/1.3 'SFMono-Regular', monospace; letter-spacing: .08em; text-transform: uppercase; } .ds-details-dialog h2 { margin: .45rem 0 0; color: #f0e6d2; font: 700 clamp(1.5rem,4vw,2.5rem)/1 'Helvetica Neue', sans-serif; text-transform: uppercase; } .ds-details-dialog__close { min-height: 2.8rem; padding: .75rem 1rem; border: 1px solid rgba(240,230,210,.32); border-radius: .25rem; color: #f0e6d2; background: transparent; cursor: pointer; font: 800 .7rem/1 'Avenir Next', sans-serif; letter-spacing: .075em; text-transform: uppercase; } .ds-details-dialog__close:hover, .ds-details-dialog__close:focus-visible { border-color: #0ac8b9; color: #e7c982; } .ds-details-dialog p { max-width: 70ch; margin: .85rem 0 0; color: #c1bdaf; font: .875rem/1.5 'Avenir Next', sans-serif; }"
+    },
+    {
+      "name": "Active Room Banner",
+      "kind": "nav",
+      "refersTo": "active-room-banner",
+      "description": "Persistent room code and connection state, with a return path and explicit Leave action across routes.",
+      "html": "<aside class=\"ds-active-room\" aria-label=\"Active room\"><div class=\"ds-active-room__copy\"><strong>Room H7K2XP</strong><span>Connected in this browser</span></div><div class=\"ds-active-room__actions\"><a href=\"/room/H7K2XP\">RETURN TO ROOM</a><button type=\"button\">LEAVE ROOM</button></div></aside>",
+      "css": ".ds-active-room { display: flex; min-height: 4.35rem; align-items: center; justify-content: space-between; gap: 1rem; padding: .65rem 1rem; border: 1px solid rgba(200,170,110,.42); border-top: 0; border-radius: 0 0 .25rem .25rem; background: linear-gradient(100deg,rgba(200,170,110,.1),#0d1825); } .ds-active-room__copy, .ds-active-room__actions { display: flex; align-items: center; gap: .85rem; } .ds-active-room__copy strong { color: #e7c982; font: 700 .88rem/1.3 'SFMono-Regular',monospace; } .ds-active-room__copy span { color: #c1bdaf; font: .78rem/1.4 'Avenir Next',sans-serif; } .ds-active-room__actions a, .ds-active-room__actions button { min-height: 2.75rem; padding: .6rem .8rem; border: 1px solid rgba(240,230,210,.32); border-radius: .25rem; color: #f0e6d2; background: transparent; font: 700 .68rem/1 'Avenir Next',sans-serif; letter-spacing: .06em; text-decoration: none; } .ds-active-room__actions a:focus-visible, .ds-active-room__actions button:focus-visible { outline: 3px solid #e7c982; outline-offset: 3px; } @media (max-width: 640px) { .ds-active-room { flex-wrap: wrap; align-items: flex-start; padding: .75rem; } .ds-active-room__copy, .ds-active-room__actions { width: 100%; } .ds-active-room__copy { align-items: flex-start; flex-direction: column; gap: .1rem; } .ds-active-room__actions { justify-content: space-between; } }"
+    },
+    {
+      "name": "Shared Display Stage",
+      "kind": "custom",
+      "refersTo": "display-page",
+      "description": "A read-only room screen that anchors its join code and QR beside the current public phase.",
+      "html": "<div class=\"ds-shared-stage\"><header class=\"ds-shared-stage__header\"><div><span class=\"ds-shared-stage__status\">ROOM DISPLAY CONNECTED</span><h2>Build reveal</h2><p>Scan the code to join as a player or spectator.</p></div><aside class=\"ds-shared-stage__join\"><span>ROOM CODE</span><strong>H7K2XP</strong><div class=\"ds-shared-stage__qr\" role=\"img\" aria-label=\"QR code for joining the room\">QR</div></aside></header><section class=\"ds-shared-stage__phase\"><span>THE REVEAL</span><h3>2 of 4 builds revealed</h3><p>Completed builds are public as they appear.</p></section></div>",
+      "css": ".ds-shared-stage { display: grid; gap: 2rem; color: #f0e6d2; } .ds-shared-stage__header { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: clamp(1.5rem,4vw,4rem); padding-bottom: 1.5rem; border-bottom: 1px solid rgba(240,230,210,.15); } .ds-shared-stage__status, .ds-shared-stage__join > span, .ds-shared-stage__phase > span { color: #0ac8b9; font: 800 .65rem/1.3 'Avenir Next',sans-serif; letter-spacing: .12em; text-transform: uppercase; } .ds-shared-stage h2 { margin: .6rem 0 0; font: 700 clamp(2.4rem,6vw,5rem)/.98 'Helvetica Neue',sans-serif; text-transform: uppercase; } .ds-shared-stage__header p, .ds-shared-stage__phase p { color: #c1bdaf; font: 1rem/1.5 'Avenir Next',sans-serif; } .ds-shared-stage__join { display: grid; justify-items: center; gap: .35rem; min-width: 12rem; padding: .85rem; border: 1px solid rgba(200,170,110,.42); border-radius: .35rem; background: #0d1825; } .ds-shared-stage__join strong { color: #e7c982; font: 700 1.8rem/1.1 'SFMono-Regular',monospace; letter-spacing: .13em; } .ds-shared-stage__qr { display: grid; width: 8rem; aspect-ratio: 1; place-items: center; color: #07111c; background: #f0e6d2; font: 700 .75rem/1 'SFMono-Regular',monospace; } .ds-shared-stage__phase { display: grid; gap: .35rem; padding: clamp(1rem,2.4vw,1.8rem); border: 1px solid rgba(240,230,210,.15); border-radius: .35rem; background: linear-gradient(145deg,rgba(19,40,59,.94),rgba(13,24,37,.94)); box-shadow: 0 1.5rem 3rem rgba(0,0,0,.28); } .ds-shared-stage__phase h3 { margin: 0; font: 700 clamp(1.5rem,3vw,2.2rem)/1.08 'Helvetica Neue',sans-serif; } @media (max-width: 640px) { .ds-shared-stage__header { grid-template-columns: minmax(0,1fr); align-items: start; gap: 1.25rem; } .ds-shared-stage__join { justify-self: start; } }"
     }
   ],
   "narrative": {
     "northStar": "The Split Champion Board",
-    "overview": "BuildChamp is a compact drafting game for League of Legends players who want to make a quick, subjective build choice. The interface keeps the earlier split composition: a clear action and short rule on one side, a champion board on the other. The board is an authored interface object, not a paper ticket, stat dashboard, or imitation of the League client.\n\nThe atmosphere is low-light and focused. Deep blue surfaces establish the play space, warm gold marks a decision, and teal marks active or confirmed state. Headings use a stable grotesk face with weight and scale doing the expressive work; copy describes the action plainly.",
+    "overview": "BuildChamp is a compact drafting game for League of Legends players who want to make a quick, subjective build choice. The interface keeps the Split Champion Board: a clear action and short rule beside a champion board. The board is an authored interface object, not a paper ticket, stats dashboard, or imitation of the League client.\n\nThe atmosphere is low-light and focused. Deep blue surfaces establish the play space, warm gold marks a decision, and teal marks active or confirmed state. The same vocabulary carries into private-room entry, participant phases, and reveals. Shared display screens prioritize the room code and QR beside a read-only view of public progress and completed builds. Headings use a stable grotesk face; copy describes the action plainly.",
     "keyCharacteristics": [
       "A split first viewport with a large direct headline and an angled champion board.",
       "League-inspired navy, parchment, gold, and teal palette without Riot or League branding.",
       "Helvetica Neue display headings with Avenir Next body copy and sparse measurement mono.",
-      "Six-slot strips and cards that keep Body, Q, W, E, R, and Passive visible in order."
+      "Six-slot strips and cards that keep Body, Q, W, E, R, and Passive visible in order.",
+      "Home, Solo, Rooms, participant, and read-only shared-display screens share the same board language."
     ],
     "rules": [
       {
@@ -278,7 +416,8 @@
       "Do use Helvetica Neue or a similarly sturdy neutral grotesk for display headings.",
       "Do keep gold for decisions and teal for status, with text labels for both.",
       "Do label the fixture and keep the solo route untimed and account-free.",
-      "Do use direct, factual UI copy that tells the player what to do next."
+      "Do use direct, factual UI copy that tells the player what to do next.",
+      "Do keep the active-room return and Leave banner visible across app routes."
     ],
     "donts": [
       "Don't use ticket, perforation, stamp, or faux-paper motifs.",

@@ -13,6 +13,8 @@ method responses identifying protocol v3. One recovery request with a fresh rand
 returned `active_room_not_found`; it created no room or claim and indicates the identity handler was
 reachable. No live room journey was run, so this evidence does not verify room admission, reveal,
 voting, rematch, or production lobby-state migration.
+A follow-up documentation-only commit, `b762025`, also completed its connected production Workers
+Build successfully. No direct live room checks followed that docs-only build.
 
 The source inventory and policy review are recorded in [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md),
 but the deployed site does not satisfy the open Riot release gate. New public releases remain blocked

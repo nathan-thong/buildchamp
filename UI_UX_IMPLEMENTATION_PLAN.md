@@ -4,6 +4,11 @@ Date: 2026-09-07
 Status: Implemented and verified locally on 2026-09-07.
 Intended implementer: GPT-5.6 Luna with Max reasoning.
 
+> Archived on 2026-10-12. This record covers the completed solo UI refinement only. Its task-specific
+> exclusions, including “Do not add multiplayer work,” are historical and do not describe current
+> product scope. Use `IMPLEMENTATION_PLAN.md` for the current sequence, `CURRENT_STATE.md` for verified
+> progress, and `DESIGN.md` for the active visual system.
+
 ## Objective
 
 Improve the existing solo experience so players can identify the offered champion, compare components, inspect their growing build, and make a deliberate permanent choice comfortably on desktop and mobile. Preserve BuildChamp's navy/gold/teal identity and Split Champion Board direction.

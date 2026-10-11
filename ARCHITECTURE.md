@@ -2,7 +2,7 @@
 
 ## Status
 
-This document records the implementation architecture for the solo-first release and the private-lobby release that follows it. It is intentionally narrower than a full production platform design.
+This document records the implementation architecture for the solo-first experience and the implemented private-lobby system. Production build evidence and the remaining limits of live validation are recorded in `DEPLOYMENT.md`. It is intentionally narrower than a full production platform design.
 
 ## Technology Choices
 
@@ -167,7 +167,7 @@ The Durable Object validates every transition:
 - Explicit Leave is authenticated by the participant's reconnect credential. Before reveal, it removes the seat and its unshown build. After reveal starts, the completed build remains a candidate and an already-cast ballot remains recorded; the departed seat cannot vote again or join a rematch. A later rejoin creates a new spectator seat where the room phase permits it.
 - Rematches retain the room and participants who have not left, clear the previous draft/ballots, and generate fresh champions. A departing participant is not restored into the rematch.
 
-Local protocol and persisted-state schema version 3 read existing version-2 lobby snapshots. Waiting and drafting state, including an absolute draft deadline, is preserved. A legacy `draft-complete` room is advanced once to reveal using its stored reveal preference and a new server-derived reveal deadline; reads do not repeatedly restart the phase. Version 3 adds the separate `BuildChampBrowserIdentity` SQLite Durable Object via Wrangler migration `v2`, following the lobby class in migration `v1`. This migration is present in the local Wrangler configuration; it has not been applied to the live service.
+Local protocol and persisted-state schema version 3 read existing version-2 lobby snapshots. Waiting and drafting state, including an absolute draft deadline, is preserved. A legacy `draft-complete` room is advanced once to reveal using its stored reveal preference and a new server-derived reveal deadline; reads do not repeatedly restart the phase. Version 3 adds the separate `BuildChampBrowserIdentity` SQLite Durable Object via Wrangler migration `v2`, following the lobby class in migration `v1`. The successful production build included the protocol-v3 Worker and identity binding; a live recovery request reached the identity handler. The production migration history and any existing v2 lobby's transition to v3 have not been verified. See `DEPLOYMENT.md`.
 
 Quick, Standard, and Relaxed settings use draft timers of 15, 30, and 45 seconds and voting timers
 of 20, 30, and 45 seconds respectively. The selected draft deadline is one absolute timestamp

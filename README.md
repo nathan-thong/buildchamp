@@ -1,6 +1,6 @@
 # BuildChamp
 
-BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. Private rooms support synchronized drafts, group reveals, secret voting, results, and rematches in Same Champs and Random Champs modes. The connected production Workers Build for commit `dd9413a` succeeded on 2026-10-11; the deployed bundle and API identify as protocol v3. No end-to-end live room journey or production lobby-state migration has been verified.
+BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. The locally verified private-room implementation supports synchronized drafts, group reveals, secret voting, results, and rematches in Same Champs and Random Champs modes. The connected production Workers Build for commit `dd9413a` succeeded on 2026-10-11; the deployed bundle and API identify as protocol v3. No end-to-end live room journey or production lobby-state migration has been verified.
 
 A solo run has six rounds. In each round, permanently lock one remaining component—**Body, Q, W, E, R, or Passive**—from the offered champion. There are no skips or rerolls. Build strength stays subjective; players decide which combination wins.
 
@@ -41,7 +41,7 @@ The product sequence is:
 
 1. Untimed solo draft
 2. Shareable build results
-3. Private friend lobbies (local synchronized draft through rematch implemented)
+3. Private friend lobbies (implemented and locally verified through rematch; live journey unverified)
 4. Slice 12 reliability and release gates
 5. Public build rankings only if group play proves useful; accounts remain deferred
 
@@ -63,22 +63,23 @@ Solo play runs in the browser without a gameplay backend. After its first online
 
 The Markdown files are intentionally separated by responsibility:
 
-| Document                                           | Purpose                                                                                                                                               |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [CURRENT_STATE.md](./CURRENT_STATE.md)             | The compact handoff: present milestone, verified capabilities, next action, and active release blockers                                               |
-| [DESIGN.md](./DESIGN.md)                           | The visual design system: palette, typography, layout, component treatment, and interface guardrails                                                  |
-| [PRODUCT.md](./PRODUCT.md)                         | The product contract: audience, game modes, draft rules, voting, sharing, brand, accessibility, and deferred scope                                    |
-| [ARCHITECTURE.md](./ARCHITECTURE.md)               | The system design: frontend boundaries, Cloudflare topology, WebSocket protocol, persistence, security, performance, testing, and hosting portability |
-| [CHAMPION_DATA.md](./CHAMPION_DATA.md)             | The champion-data contract: slot meanings, resource policy, portability tests, normalized schemas, patch sync, variants, and champion exceptions      |
-| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | The build order: twelve vertical slices with acceptance criteria for the Solo MVP and Private Lobby MVP                                               |
-| [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)     | The snapshot, Riot policy, registration, notice, and asset-eligibility release gates                                                                  |
-| [DEPLOYMENT.md](./DEPLOYMENT.md)                   | Cloudflare preview/production commands, rollback, headers, diagnostics, and cost guardrails                                                           |
-| [AGENTS.md](./AGENTS.md)                           | Operating instructions for coding agents working in this repository, including required reading and non-negotiable invariants                         |
-| [REPOSITORY_WORKFLOW.md](./REPOSITORY_WORKFLOW.md) | On-demand branch, staging, commit, push, handoff, and README-maintenance policy                                                                       |
+| Document                                                       | Purpose                                                                                                                                               |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [CURRENT_STATE.md](./CURRENT_STATE.md)                         | The compact handoff: present milestone, verified capabilities, next action, and active release blockers                                               |
+| [DESIGN.md](./DESIGN.md)                                       | The visual design system: palette, typography, layout, component treatment, and interface guardrails                                                  |
+| [PRODUCT.md](./PRODUCT.md)                                     | The product contract: audience, game modes, draft rules, voting, sharing, brand, accessibility, and deferred scope                                    |
+| [ARCHITECTURE.md](./ARCHITECTURE.md)                           | The system design: frontend boundaries, Cloudflare topology, WebSocket protocol, persistence, security, performance, testing, and hosting portability |
+| [CHAMPION_DATA.md](./CHAMPION_DATA.md)                         | The champion-data contract: slot meanings, resource policy, portability tests, normalized schemas, patch sync, variants, and champion exceptions      |
+| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)             | The build order: twelve vertical slices with acceptance criteria for the Solo MVP and Private Lobby MVP                                               |
+| [UI_UX_IMPLEMENTATION_PLAN.md](./UI_UX_IMPLEMENTATION_PLAN.md) | Archived solo UI refinement record; its old scope exclusions are historical                                                                           |
+| [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)                 | The snapshot, Riot policy, registration, notice, and asset-eligibility release gates                                                                  |
+| [DEPLOYMENT.md](./DEPLOYMENT.md)                               | Cloudflare preview/production commands, rollback, headers, diagnostics, and cost guardrails                                                           |
+| [AGENTS.md](./AGENTS.md)                                       | Operating instructions for coding agents working in this repository, including required reading and non-negotiable invariants                         |
+| [REPOSITORY_WORKFLOW.md](./REPOSITORY_WORKFLOW.md)             | On-demand branch, staging, commit, push, handoff, and README-maintenance policy                                                                       |
 
 When documents overlap, `PRODUCT.md` owns player-facing intent, `CHAMPION_DATA.md` owns kit compatibility, and `ARCHITECTURE.md` owns system boundaries. `IMPLEMENTATION_PLAN.md` sequences the work, while `CURRENT_STATE.md` reports progress; neither overrides the contracts.
 
-The `.impeccable/` directory contains design-direction artifacts produced while exploring the interface. Meaningful artifacts such as the direction record and sketches are retained in version control, while transient tooling output such as logs follows the default ignore rules. These artifacts are not product specifications. Some sketches predate settled terminology such as the rename from “Model” to “Body”; the Markdown contracts take precedence.
+The `.impeccable/` directory contains the current machine-readable design sidecar plus historical visual-direction options and sketches. The ticket, split-flap, Miura, and console studies are exploratory alternatives, not current interface guidance; `DESIGN.md` records the active Split Champion Board system. Some sketches predate the rename from “Model” to “Body”. The archives are retained for provenance, while transient logs follow the default ignore rules and product behavior stays defined by the Markdown contracts.
 
 ## A note on AI assistance
 
@@ -127,8 +128,9 @@ release containing Riot data or assets.
 Cloudflare deployment preparation is included in the repository. Run `pnpm build:cloudflare` to
 build and verify the deployable assets, or `pnpm run cloudflare:dev` for a local Worker smoke test.
 The Slice 9–11 routes and room screens are available in local Worker runs. The connected production
-Workers Build for `dd9413a` succeeded, and the live root bundle and API report protocol v3. No live
-room journey or production lobby-state migration was verified. See [DEPLOYMENT.md](./DEPLOYMENT.md)
+Workers Build for `dd9413a` succeeded, and the live root bundle and API report protocol v3. A
+follow-up docs-only build for `b762025` also succeeded. No live room journey or production lobby-state
+migration was verified. See [DEPLOYMENT.md](./DEPLOYMENT.md)
 for the deployment evidence and limits, migration, and release status, plus rollback and monitoring
 guidance.
 
