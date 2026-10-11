@@ -45,6 +45,12 @@ Durable Object deadline alarm and legal timeout autopicks. `pnpm test` verifies 
 Cloudflare credentials. The one-hour expiry boundary has unit coverage; the alarm's wall-clock
 cleanup is not exercised by this command.
 
+The `worker:types` build step creates the ignored `.wrangler/` directory before calling Wrangler,
+so a clean checkout does not depend on a generated directory from an earlier local run. A detached
+checkout with the entire directory absent passed `pnpm build` and `pnpm run build:cloudflare` using
+Node 24.19.0 and the pinned pnpm 11.19.0. Cloudflare's next Workers Build is still needed to verify
+the fix in its remote build environment.
+
 ## Preview deployment
 
 The public `workers.dev` preview is guarded by the Riot checklist because it serves the same

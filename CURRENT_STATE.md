@@ -13,7 +13,7 @@ Last updated: 2026-10-11
 
 - The 16.17.1 snapshot has 173 champions (172 eligible); Aphelios is excluded. Reviewed exceptions have source notes and regression tests. Snapshot 15.17.1 remains for old share links.
 - `worker/index.ts` serves versioned room routes. `BuildChampLobby` owns versioned SQLite state, hibernatable WebSockets, and absolute alarms. Public displays receive champion identity/progress only; players receive only their own offer. Same Champs offers are common-path compatible; Random Champs offers are private. Deadline settlement precedes late commands, disconnected seats can reconnect until deadline, and retries cannot advance twice. Inactivity expiry is one hour.
-- Local checks on 2026-10-11: 109 unit, 40 Chromium/WebKit solo, and 5 Wrangler multiplayer tests passed. Multiplayer coverage includes six rounds in both modes, concurrent locks, reconnect, alarm autopick, role privacy, and SQLite restore after Worker restart. Typecheck, lint, format, Cloudflare artifact checks, build, and Wrangler dry-run passed. One-hour cleanup was unit-tested, not run end-to-end.
+- Local checks on 2026-10-11: 109 unit, 40 Chromium/WebKit solo, and 5 Wrangler multiplayer tests passed. Coverage: six rounds per mode, locks, reconnect, alarm autopick, privacy, SQLite restore. Typecheck, lint, format, Cloudflare artifact checks, build, and Wrangler dry-run passed. One-hour cleanup was unit-tested only. The Workers Build for 62618b5 failed when clean checkout lacked `.wrangler`; the fix passes a detached clean build and Cloudflare artifact check, but remote retry is pending.
 - The build emits a 2.97 MB JavaScript chunk (about 430 KB gzip), above Vite's advisory threshold.
 
 ## Release Review

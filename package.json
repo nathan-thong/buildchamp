@@ -12,7 +12,7 @@
     "dev": "vite",
     "build": "pnpm run worker:types && tsc -b --pretty false && vite build",
     "preview": "vite preview",
-    "worker:types": "wrangler types .wrangler/worker-configuration.d.ts --env-interface WorkerEnv",
+    "worker:types": "node scripts/ensure-wrangler-types-dir.js && wrangler types .wrangler/worker-configuration.d.ts --env-interface WorkerEnv",
     "typecheck": "pnpm run worker:types && tsc -b --pretty false",
     "lint": "eslint .",
     "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.{js,ts,tsx}\" \"worker/**/*.ts\" \"*.{js,ts,json,html}\" \"tests/**/*.{ts,tsx}\"",
