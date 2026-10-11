@@ -1,6 +1,6 @@
 # BuildChamp
 
-BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. Local private rooms support synchronized drafts, group reveals, secret voting, results, and rematches in Same Champs and Random Champs modes. The local multiplayer implementation is protocol v3; the deployed Workers.dev API was observed responding as protocol v2 on 2026-10-11, and the current local changes have not been deployed.
+BuildChamp is an unofficial, non-commercial party game for League of Legends players. Draft a hypothetical champion from parts of six random champions, then share the result. Private rooms support synchronized drafts, group reveals, secret voting, results, and rematches in Same Champs and Random Champs modes. The connected production Workers Build for commit `dd9413a` succeeded on 2026-10-11; the deployed bundle and API identify as protocol v3. No end-to-end live room journey or production lobby-state migration has been verified.
 
 A solo run has six rounds. In each round, permanently lock one remaining component—**Body, Q, W, E, R, or Passive**—from the offered champion. There are no skips or rerolls. Build strength stays subjective; players decide which combination wins.
 
@@ -13,12 +13,13 @@ and `/display/:code` for the QR-enabled shared screen. A global Rooms session st
 navigating through the app. When browser storage is available, one same-origin browser profile can
 hold one active non-display room seat across rooms until Leave or room expiry; this does not identify a person
 across browser profiles or devices or impose a one-seat-per-IP rule.
-The local Worker API uses protocol v3 and supports create, join, recover, leave, room lookup, and
-WebSocket connections. On 2026-10-11, a read-only request to the deployed `/api/rooms` returned its
-protocol-v2 method response and `/api/rooms/recover` returned 404. No live room was created or
-joined, so the public room journey was not tested; these checks do not establish that the deployed
-service supports this local Slice 11 behavior. See [DEPLOYMENT.md](./DEPLOYMENT.md) for the
-verified live/local distinction. The maintainer reports Riot Developer Portal approval dated
+The Worker API uses protocol v3 and supports create, join, recover, leave, room lookup, and WebSocket
+connections. On 2026-10-11, the live root referenced the local JavaScript bundle and read-only
+`GET /api/rooms` and `GET /api/rooms/recover` returned protocol-v3 method responses. A recovery
+request returned `active_room_not_found` without creating a room or claim. This confirms the bundle,
+API version, and identity-handler reachability, but not a complete deployed room journey or live
+lobby-state migration. See [DEPLOYMENT.md](./DEPLOYMENT.md) for the evidence and limits. The
+maintainer reports Riot Developer Portal approval dated
 2026-09-28, but the approval record is not in this repository. The source inventory for 38
 CommunityDragon image references is complete; their Riot eligibility remains unconfirmed, so
 release sign-off is pending. The repository contains a validated English Data Dragon
@@ -56,7 +57,7 @@ The product sequence is:
 - A separate admission-only Durable Object serializes one active room claim per browser identity
 - Controlled, versioned Riot Data Dragon snapshots for champion data and default artwork
 
-Solo play runs in the browser without a gameplay backend. After its first online visit, the app shell and versioned code can reload offline; remote champion artwork may fall back when no network is available. Local rooms use a Cloudflare Worker, one SQLite-backed Durable Object per room, and the admission-only identity coordinator. This local protocol-v3 work has not been deployed.
+Solo play runs in the browser without a gameplay backend. After its first online visit, the app shell and versioned code can reload offline; remote champion artwork may fall back when no network is available. Rooms use a Cloudflare Worker, one SQLite-backed Durable Object per room, and the admission-only identity coordinator. Production serves the protocol-v3 bundle and API; full production room behavior remains unverified.
 
 ## Development Documentation
 
@@ -125,10 +126,11 @@ release containing Riot data or assets.
 
 Cloudflare deployment preparation is included in the repository. Run `pnpm build:cloudflare` to
 build and verify the deployable assets, or `pnpm run cloudflare:dev` for a local Worker smoke test.
-The Slice 9–11 routes and room screens are available in local Worker runs. The live API returned a
-protocol-v2 method response on 2026-10-11, while the local implementation is protocol v3; no live
-room journey was performed. See [DEPLOYMENT.md](./DEPLOYMENT.md) for the migration and release
-distinction, plus deployment, rollback, and monitoring guidance.
+The Slice 9–11 routes and room screens are available in local Worker runs. The connected production
+Workers Build for `dd9413a` succeeded, and the live root bundle and API report protocol v3. No live
+room journey or production lobby-state migration was verified. See [DEPLOYMENT.md](./DEPLOYMENT.md)
+for the deployment evidence and limits, migration, and release status, plus rollback and monitoring
+guidance.
 
 ## Core Rules
 

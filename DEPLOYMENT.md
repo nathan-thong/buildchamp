@@ -4,11 +4,15 @@ The production Workers.dev site is live at
 [buildchamp.nathan-thong.workers.dev](https://buildchamp.nathan-thong.workers.dev). A browser
 smoke check on 2026-09-28 confirmed direct navigation to `/`, `/solo`, `/build/demo`, and a valid
 versioned `/build/:payload` result. HTTP verification on 2026-10-09 confirmed `/service-worker.js`
-returned 200 and the live JavaScript matched the then-current local build. On 2026-10-11, a read-only
-`GET /api/rooms` returned 405 with the protocol-v2 method response, while `POST /api/rooms/recover`
-returned 404. No live room was created or joined. These checks show a protocol-v2 API surface but do
-not establish a working public room journey or the deployed reveal/vote/rematch behavior. Local
-Slice 11 uses protocol v3 and has not been deployed.
+returned 200 and the live JavaScript matched the then-current local build. After commit `dd9413a`
+was pushed on 2026-10-11, the connected production Workers Build succeeded (build
+`e450a1c9-b212-4c83-b2c8-75ae80dfd25b`, version
+`0a24ddf2-39c5-4c07-adc6-f1f3941bc0ce`). The live root references the same protocol-v3 JavaScript
+bundle as the local build, and read-only `GET /api/rooms` and `GET /api/rooms/recover` returned 405
+method responses identifying protocol v3. One recovery request with a fresh random browser token
+returned `active_room_not_found`; it created no room or claim and indicates the identity handler was
+reachable. No live room journey was run, so this evidence does not verify room admission, reveal,
+voting, rematch, or production lobby-state migration.
 
 The source inventory and policy review are recorded in [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md),
 but the deployed site does not satisfy the open Riot release gate. New public releases remain blocked
@@ -51,8 +55,8 @@ waited out by this command.
 The `worker:types` build step creates the ignored `.wrangler/` directory before calling Wrangler,
 so a clean checkout does not depend on a generated directory from an earlier local run. A detached
 checkout with the entire directory absent passed `pnpm build` and `pnpm run build:cloudflare` using
-Node 24.19.0 and the pinned pnpm 11.19.0. Cloudflare's next Workers Build is still needed to verify
-the fix in its remote build environment.
+Node 24.19.0 and the pinned pnpm 11.19.0. The successful production Workers Build for `dd9413a`
+also confirms the clean-build fix in Cloudflare's build environment.
 
 ## Preview deployment
 
@@ -112,7 +116,8 @@ The current local Wrangler configuration has the `BuildChampLobby` SQLite Durabl
 `LOBBIES` binding in migration `v1`. It adds an admission-only `BuildChampBrowserIdentity` SQLite
 Durable Object under `IDENTITIES` in migration `v2`; the room object remains the sole gameplay-state
 owner. Local type generation, build, Worker tests, and Wrangler dry-run cover this configuration.
-The v2 migration has not been applied to the live service, and no production deploy was performed.
-Before a future deploy, confirm the target's current migration history and review the migration plan
-against its live bindings. Solo play continues to require no backend, account, or behavioural
-analytics. Review current Cloudflare limits and billing before public promotion.
+The production build and identity-handler response do not expose the live Durable Object migration
+history or verify lobby-state migration/data preservation. Confirm live migration history and
+bindings before any further migration or claiming full production room support. Solo play continues
+to require no backend, account, or behavioural analytics. Review current Cloudflare limits and
+billing before public promotion.

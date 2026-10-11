@@ -45,7 +45,9 @@ tests, production build, Cloudflare artifact checks, Wrangler dry-run, all 40 Ch
 tests, and all 5 local Wrangler/SQLite multiplayer tests. The multiplayer suite covers both six-round
 modes, concurrent locks, reconnect and deadline handling, alarm autopick, role privacy, and SQLite
 restoration after Worker restart. The one-hour inactivity cleanup is unit-tested but was not run
-end-to-end. The local client has since changed; no public deployment or release-gate change occurred.
+end-to-end. The connected production Workers Build for commit `dd9413a` later succeeded on 2026-10-11;
+the live bundle and API report protocol v3. No live room journey or production lobby-state migration
+was verified, and the Riot release gate remains open.
 
 Policy and asset review refreshed 2026-10-11. Riot's [General Policies](https://support-developer.riotgames.com/hc/en-us/articles/22698591841939-General-Policies)
 (updated 2025-05-29) says not to develop games utilizing Riot IP, describes that as including
